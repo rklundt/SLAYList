@@ -9,19 +9,21 @@ Tracks notable versions/milestones of the project and key dependency/tooling ver
 | 0.0.1 | (scaffold) | Initial project scaffold: docs, sprint structure, command definitions. No code yet. |
 | 0.0.2 | 2026-05-24 | Pre-Epic-0 alignment: AGPL-3.0-or-later licensing (D15), DCO + relicensing grant (D16), public repo from commit one (D17), Node 22 LTS + npm workspaces pinned (D18). |
 | 0.0.3 | 2026-05-24 | Sprint 0.1 complete: public GitHub repo at `rklundt/SLAYList`; `develop` + `main` with branch protection; D31 baseline 3/4 (secret scanning, push protection, Dependabot security updates) — CodeQL deferred to Sprint 0.2 retry because GitHub's default-setup requires detected source languages and the initial scaffold is markdown-only. |
+| 0.0.4 | 2026-05-24 | Sprint 0.2 complete: monorepo scaffold (pnpm 11.3.0 workspaces per D34, supersedes D18's npm pin; working tree moved off exFAT to an NTFS path due to pnpm's symlink requirement — see D34 implementation note); `/shared` types module per D19/D21 with locked `SongState`/`Role`/`DEFAULT_LIBRARY_ID`; Vitest 3.2.4 + TypeScript 5.9.3 + `@types/node` 22.19.19 with strict + noUncheckedIndexedAccess (D29) clean across all 4 workspaces; 5 invariant tests passing. CodeQL retry (D31) still pending — actually fires post-merge of this sprint's PR, when TS code lands on default branch. New public-repo hygiene rule: no personal-machine local paths in committed files or commit messages. |
 
 ## Key tooling / dependency versions
 
 | Item | Version | Notes |
 |---|---|---|
 | Node.js | **22 LTS** | Pinned across frontend, API, transcoder. Set by API constraint (D18). |
-| Package manager | **npm** | Static Web Apps' build expects npm by default. Don't switch to pnpm/yarn without revisiting D18 and the Epic 2 deploy pipeline. |
-| Monorepo strategy | **npm workspaces** | One root `package.json` with `workspaces: ["frontend", "api", "transcoder", "shared"]`. `shared` imported by relative workspace name. |
+| Package manager | **pnpm 11.3.0** (D34, supersedes D18's npm pin) | Pinned via `package.json` `packageManager` field (corepack-compatible). CI uses `pnpm install --frozen-lockfile`. Working tree MUST be on a filesystem with symlink support (NTFS on Windows, ext4/APFS on Linux/macOS — exFAT/FAT32 break pnpm; see D34 implementation note). |
+| Monorepo strategy | **pnpm workspaces** (D34) | `pnpm-workspace.yaml` lists `shared`, `api`, `frontend`, `transcoder`. Internal deps use the `workspace:*` protocol. pnpm 11 settings (e.g., `allowBuilds`) live in `pnpm-workspace.yaml`, not in `package.json`. |
 | Frontend framework | React + Vite (TS) | Versions pinned in Epic 0.2 when the scaffold lands. |
 | API runtime | Azure Static Web Apps managed functions (Azure Functions v4, Node 22) | Set `apiRuntime: "node:22"` in `staticwebapp.config.json`. |
 | Transcoder | ffmpeg in a Docker image | Base image + ffmpeg version pinned in Epic 6. |
-| Testing framework | **Vitest** (D23) | Pinned from Sprint 0.2. CI gate is **soft** during Epics 0–3 (advisory, runs but does not block merge) and **hard** from Sprint 4.1 onward (failing tests block merge to `develop`). The flip is an explicit Sprint 4.1 acceptance criterion — not memory-dependent. Concrete Vitest version pinned in Sprint 0.2 when the scaffold lands. |
-| TypeScript strictness | **`strict: true` + `noUncheckedIndexedAccess: true`** (D29) | Pinned in root `tsconfig.json` at Sprint 0.2. All workspaces extend the root. No workspace silently overrides these flags downward. |
+| Testing framework | **Vitest 3.2.4** (D23) | Pinned from Sprint 0.2 (range `^3.0.0` in `package.json`; exact patch in `pnpm-lock.yaml`). CI gate is **soft** during Epics 0–3 (advisory, runs but does not block merge) and **hard** from Sprint 4.1 onward (failing tests block merge to `develop`). The flip is an explicit Sprint 4.1 acceptance criterion — not memory-dependent. |
+| TypeScript | **5.9.3** with `strict: true` + `noUncheckedIndexedAccess: true` (D29) | Pinned from Sprint 0.2 (range `^5.7.0` in `package.json`; exact patch in `pnpm-lock.yaml`). Root `tsconfig.json` carries the strict settings; all workspaces extend the root. No workspace silently overrides these flags downward. |
+| `@types/node` | **22.19.19** | Pinned to the 22.x line to match Node 22 runtime (D18). Range `^22.10.0` in `package.json`; exact patch in `pnpm-lock.yaml`. |
 | Azure deploy auth | **OIDC federation** (D30) | Federated Entra app registration; no long-lived client secret stored in GitHub Secrets. Federated credentials keyed to repo + branch. Set up at Sprint 2.1. |
 | GitHub repo security | **Secret scanning + push protection + Dependabot security updates + CodeQL** (D31) | All enabled at Sprint 0.1. Free on public repos. Push protection is the critical control. |
 | CI provider | **GitHub Actions** | Workflows live in `.github/workflows/`. Chosen by Epic 2's pipeline. No other CI provider in scope. |

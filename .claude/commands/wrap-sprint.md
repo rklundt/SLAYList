@@ -44,6 +44,12 @@ Run each as a distinct perspective with its own checklist. For each, list concre
 - "Shared" never means public.
 - **No PII in logs (D32) — every sprint that adds log statements or telemetry.** Scan new log statements for: any field named or containing `ownerDisplayName`, `preferred_username`, `email`, `displayName`, or `title` (song titles contain kids' names). Any of these flowing to App Insights = **CRITICAL**. Acceptable substitutes: `ownerOid`, `songId`. For transcoder sprints, verify ffmpeg stderr is captured via the D32 mitigation (songId-based local filenames OR substitution before emit) — not raw stderr direct to App Insights.
 - **`raw-uploads` deletion check (D28) — every sprint that touches the storage account, lifecycle rules, or any "cleanup" job.** Any code, lifecycle rule, or scheduled task that *deletes* from `raw-uploads` = **CRITICAL**. Tier-transition lifecycle rules (Hot→Cool→Archive) are fine; deletion is forbidden. The kids' originals are canonical archive.
+- **Personal-machine local-path leak (every sprint that adds or edits committed content — files OR commit messages).** Scan for:
+  - **Windows drive-letter paths:** `[A-Za-z]:\` or `[A-Za-z]:/` followed by a user/project-specific directory name (e.g., `C:\Users\<name>\...`, `C:\dev\<project>\...`, `D:\<anything>\<project>\...`).
+  - **Unix user-home paths:** `/home/<name>/...`, `/Users/<name>/...`, `~/<project>/...`.
+  - **Commit messages** count — `git log` is permanent on a public repo. Scan with: `git log -p develop..HEAD | grep -iE '[A-Za-z]:[\\/]|/home/[^/]+/|/Users/[^/]+/' | head -20` and inspect each hit.
+  
+  Generic placeholders (`<your-project-path>`, `/path/to/your/repo`, "your project directory") are fine. A real path that identifies a specific machine, user, or local directory choice = **MODERATE** finding (or **CRITICAL** if the path reveals family/organizational info or has been on the public repo for an extended period without notice). See the "Personal-machine local paths" rule in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene".
 
 ### 5. Support
 - Is it usable by a non-technical family member / kid on a phone?
