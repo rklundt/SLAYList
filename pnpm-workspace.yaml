@@ -1,0 +1,12 @@
+packages:
+  - 'shared'
+  - 'api'
+  - 'frontend'
+  - 'transcoder'
+
+# pnpm 11+ moved most settings out of package.json into this file.
+# See: https://pnpm.io/settings
+# `allowBuilds` allow-lists packages whose postinstall scripts may run.
+# esbuild needs to install platform-specific native binaries.
+allowBuilds:
+  esbuild: true
