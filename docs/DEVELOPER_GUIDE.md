@@ -39,7 +39,21 @@ A React/TypeScript PWA talks to a light TypeScript API (both hosted on an Azure 
 
 ## Local development
 
-(Filled in concretely by Epic 0.) Goal: one command runs frontend + API locally; the transcoder is runnable/testable locally against a local or dev storage account.
+Goal: one command runs frontend + API locally; the transcoder is runnable/testable locally against a local or dev storage account.
+
+After cloning:
+
+```
+pnpm install            # installs deps for all workspaces; generates pnpm-lock.yaml on first run
+pnpm run typecheck      # tsc --noEmit across all workspaces
+pnpm test               # vitest across workspaces with tests (currently /shared; more in 0.3+)
+```
+
+The one-command local-run for frontend + API arrives in Sprint 0.3.
+
+### Filesystem requirements (D34)
+
+The working tree **must** live on a filesystem with symlink support — **NTFS on Windows; ext4/APFS on Linux/macOS**. **exFAT, FAT32, and certain SMB shares break `pnpm install`** with `EISDIR: illegal operation on a directory, symlink ...`. The `node-linker=hoisted` workaround exists but discards the strict-resolution benefit that justifies D34 — move the working tree to a supported filesystem rather than reaching for it.
 
 ## Secrets
 
@@ -89,6 +103,7 @@ What is fine to commit publicly:
 - Generic code, generic types, generic seed data.
 - The maintainer's name in copyright headers and `CONTRIBUTING.md` (Ray Klundt — by deliberate choice, see D15/D17).
 - The maintainer's git author email (currently `rayklundt@outlook.com`, visible in every commit's metadata via `git log`). This is intrinsic to git and is required by the DCO sign-off (D16) — it is NOT a public-repo-hygiene violation, just a public fact of using git with DCO. Do not flag in `/wrap-sprint`.
+- **Personal-machine local paths.** Never commit a path that identifies your specific machine, user, or project directory — `C:\Users\<you>\code\slaylist`, `D:\projects\slaylist`, `/home/<you>/code/slaylist`, `~/dev/slaylist`, etc. Document the project's *constraints* (filesystem must support symlinks per D34, OS-specific tooling) but use generic placeholders (`<your-project-path>`, "your project directory") for the path itself. **Commit messages count** — `git log` is permanent on a public repo. `/wrap-sprint` InfoSec checks for this every sprint.
 
 If you find a violation, treat the affected value as compromised (rotate the secret, rename the resource, etc.) and remove it in a follow-up commit. `git history` is forever on a public repo — prevention beats cleanup.
 

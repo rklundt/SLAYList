@@ -67,7 +67,7 @@ Outside contributions are not expected, but if they arrive, the inbound license 
 ## D17 — Public repo from the first commit; private app
 The repository is public from commit one — there is no private window during which "we'll clean it up later." Considered starting private and flipping to public after Epic 0 or after launch; rejected because (a) AGPL's force-open clause only matters if the source is actually available, (b) a "we'll scrub it later" mode invites secrets/family-detail leakage that's permanent in git history once the repo flips, and (c) committing publicly from day one creates the right hygiene reflex from the start. The **app** stays private (login-gated via Entra, family-only) — public source does not change who can listen. Hygiene rules in `docs/DEVELOPER_GUIDE.md` (no secrets, no real Azure resource names, no family-identifying detail) apply from the first commit. Sprint 0.1's acceptance criteria include a hygiene scan and a correct `.gitignore` *before* `git init`.
 
-## D18 — Node 22 LTS, single version across the repo, npm workspaces
+## D18 — Node 22 LTS, single version across the repo, npm workspaces *(npm-workspaces portion superseded by D34; Node 22 + single-version-everywhere parts remain active)*
 Frontend, API, and transcoder all pin **Node 22 LTS**. npm workspaces is the monorepo strategy (Static Web Apps' build pipeline expects npm by default; avoids Epic 2 friction). The binding constraint is Static Web Apps managed-functions, which GA-supports `node:22` (verified 2026-05-24 against `learn.microsoft.com/azure/static-web-apps/languages-runtimes`, last updated 2026-02-25 at the time of verification; the older `apis-functions` constraints page is stale and disagrees — the languages-runtimes page is authoritative). Node 20 is also GA but Node 22 LTS has the longer support runway. Node 24 is preview on standalone Functions and not listed for SWA; not a candidate for pin. One Node version across all packages keeps the local-dev story simple and removes a class of "works on the frontend, fails in CI" bugs.
 
 ## D19 — `libraryId` everywhere (renamed from `tenantId`), build single-library; supersedes D12
@@ -223,3 +223,20 @@ Blob Storage has soft-delete + versioning (Sprint 1.3) — accidental deletes an
 **Restore procedure documented in `docs/infra` notes at Sprint 4.4 close-out:** how to import a backup file back into the live Table — so a future panicked operator has a checklist, not an improvisation pass.
 
 Cross-references: **D3** (Table Storage as metadata store), **D7** (dev/prod separate — each environment backs up its own table independently), **D28** (originals kept — D33 extends "don't lose the kids' stuff" from audio to metadata).
+
+## D34 — pnpm + pnpm workspaces (supersedes D18's npm choice)
+**Switch:** the monorepo uses **pnpm 11.3.0** (pinned via `package.json` `packageManager` field, corepack-compatible) with `pnpm-workspace.yaml` defining the four packages. D18's Node 22 pin and single-version-everywhere principle stand unchanged; only D18's *npm* choice is superseded. Internal workspace deps use the `workspace:*` protocol.
+
+**Benefits accepted (the reason):** pnpm's strict dependency resolution (prevents phantom-dependency bugs — a workspace can only import what it explicitly declares); content-addressable store (faster CI installs at scale); cleaner workspace UX via `workspace:*`; deterministic `pnpm-lock.yaml` distinct from `package-lock.json`.
+
+**Cost accepted (not soft-pedaled):** D18 chose npm specifically to avoid Epic 2 SWA-build friction — SWA's Oryx auto-detects `package-lock.json` and runs `npm ci` for free. With pnpm, Sprint 2.2 takes on extra config — either configure SWA build for pnpm (via `BUILD_FLAGS` to install pnpm before Oryx's npm step), OR install pnpm in the GitHub Actions workflow and bypass Oryx's npm step entirely. D34 is not "D18 was wrong" — it's "we're accepting the cost D18 declined, in exchange for pnpm's benefits."
+
+**Verification is load-bearing, not a formality:** Sprint 2.2 acceptance includes a concrete "verify pnpm + SWA Oryx build works end-to-end on the actual dev SWA deploy" item. If the build proves more painful than expected, that verification is the documented reconsider-point — better caught at Sprint 2.2 than mid-deploy. Same skepticism discipline as D18's SWA-runtime verification and D27's codec verification.
+
+**Implementation notes (from Sprint 0.2 execution):**
+- **pnpm requires a filesystem with symlink support.** NTFS on Windows; ext4/APFS on Linux/macOS. exFAT, FAT32, and certain SMB shares fail `pnpm install` with `EISDIR: illegal operation on a directory, symlink ...`. Move the working tree to a supported filesystem rather than reaching for `node-linker=hoisted` (which discards the strict-resolution benefit that justifies D34).
+- **pnpm 11 moved most settings out of `package.json`** into `pnpm-workspace.yaml`. Examples in this project: `allowBuilds.esbuild: true` (controls which packages may run postinstall scripts; esbuild needs to install platform-specific native binaries for Vitest). See <https://pnpm.io/settings>. Older `pnpm.onlyBuiltDependencies` in package.json is silently ignored by pnpm 11.
+- **Pinned version:** pnpm 11.3.0. Avoid 9.x — it has known Windows install bugs around `@types/node` hoisting that 11.x fixed and (importantly) gave clearer error diagnostics for, including the exFAT-symlink detection above.
+- **CI:** `pnpm install --frozen-lockfile` (the pnpm equivalent of `npm ci`) — Sprint 2.2 acceptance.
+
+Cross-references: **D18** (Node 22 pin remains active; only the npm-workspaces portion of D18 is superseded), **Sprint 2.2** acceptance (load-bearing pnpm+SWA build verification), **`docs/DEVELOPER_GUIDE.md`** "Filesystem requirements" section (operationalizes the NTFS/symlink requirement).
