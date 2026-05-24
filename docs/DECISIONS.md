@@ -1,0 +1,223 @@
+# Decisions Log
+
+Why things are the way they are. Each entry is a decision, the alternatives considered, and why they were rejected. **If a sprint tempts you toward a rejected alternative, this file is why you should stop and consult the human first.**
+
+## D1 — Self-hosting, not self-publishing
+Considered publishing the kids' songs to Spotify/Amazon via a distributor. Rejected: the goal is private family playback, not money or public distribution, and AI-generated audio raises copyright/distribution complications that are irrelevant to a private library. Self-hosting sidesteps all of it.
+
+## D2 — Entra ID, no local passwords
+Considered local username/password. Rejected: storing/handling passwords correctly is a security footgun and throwaway work. Entra gives identity + roles for free, and roles are independent of how login happens. Family starts with an admin-created shared member account (Model A); guest-invite path exists for later per-kid accounts.
+
+## D3 — Table Storage for metadata, NOT a shared JSON file
+Considered a single JSON index file in blob storage. Rejected: two writers (API on upload, transcoder on completion) plus a single shared document forces a whole-catalog write lock. Considered fixing that with blob leases (pessimistic lock — deadlock risk, wrong for low contention) and ETags (optimistic — workable but still locks the whole catalog and needs retry code). Table Storage dissolves the problem: per-record writes never collide, for ~the same cost. Start here; don't "simplify" back to JSON.
+
+## D4 — Container App for transcoding, NOT Function or App Service
+- Consumption Function: cheap and scales to zero, but ffmpeg (native binary) is fiddly to package and there are execution-time limits.
+- App Service: full power but always-on billing, no clean scale-to-zero. Considered an admin "stop/start the App Service Plan" toggle — rejected: stopping the app doesn't stop plan billing (you'd have to delete/recreate the plan), and it reintroduces a babysitting/foot-gun problem.
+- **Container App (chosen)**: ffmpeg baked into the image (trivial), more headroom, AND scales to zero (idle cost ≈ nothing). Best of both.
+
+*Which ffmpeg ships in the image is constrained by licensing — see **D27** (libfdk_aac is forbidden).*
+
+## D5 — Async transcoding via event chain, not inline
+The upload API does NOT transcode inline (slow, would freeze the UI, hits Function/HTTP limits). Instead: raw file lands → Event Grid → queue → Container App. The queue adds retry-on-failure (failed jobs retry, then dead-letter into the `failed` state) and is the scale-from-zero trigger. Blob storage cannot call compute directly, which is why Event Grid is required (a Function is NOT required as a middleman).
+
+## D6 — Storage Queue to start, not Service Bus
+Service Bus is heavier (ordering, topics, richer semantics) and unnecessary at family scale. Storage Queue is simpler and cheaper. Service Bus is a known upgrade path only if outgrown.
+
+**Dead-letter is app logic, not a queue setting.** Azure Storage Queues have no native dead-letter queue primitive. The "retry + dead-letter → `failed`" behavior promised in Epic 7.2 is **application logic in the transcoder**: track each message's dequeue count, and when it exceeds a configured maximum, move the message to a separate poison/dead-letter queue and flip the record to `failed`. There is no portal toggle for this — do not go looking for one. **This is a concrete upgrade trigger:** Service Bus *does* have a native DLQ with max-delivery-count built in. Needing real dead-lettering without hand-rolled logic — or needing ordering, topics, sessions — is the specific signal that extends D6's "only if outgrown" clause into "outgrown now."
+
+## D7 — Dev and prod data stores physically separate
+Considered sharing one storage account / one queue / one Container App with internal separation (different containers/channels). Rejected for anything holding data: blast radius. A dev mistake must never be able to reach the kids' real songs. Compute/routing may be logically split; Static Web App's built-in staging environment is fine; Container App uses two separate apps. Empty dev resources cost ~nothing.
+
+## D8 — Filename is plumbing; title is metadata
+Considered making the blob filename human-meaningful and unique via a timestamp. Rejected as the *uniqueness* mechanism: two same-second uploads collide. Chosen: `{title-slug}_{timestamp}_{shortid}.{ext}` — timestamp is for human readability/sorting during restore, the shortid guarantees uniqueness. Titles live in metadata; two kids can both have a "Dragon Fight." A soft "you already have a song called that" warning is a human nicety, not a storage constraint.
+
+## D9 — Opus preferred, AAC fallback
+Opus = smaller, open, great quality-per-KB; plays in modern browsers incl. recent Safari/iOS. AAC/.m4a = max compatibility for older Apple devices. Pick one as the consistent output in Epic 6; keep input allowlist permissive.
+
+*Encoder choice for each format is constrained — see **D27**. Short version: `libopus` for Opus, ffmpeg's built-in `aac` for AAC. Do NOT reach for libfdk_aac "for quality" — it's non-free and breaks D15.*
+
+## D10 — No CDN now
+Family-scale repeat plays are handled by browser caching (proper cache headers), which is the real egress saver. CDN is the many-listener-scale upgrade and can be added in front of blob storage later without re-architecting.
+
+## D11 — Auth and pipeline come BEFORE features
+Original phase plan put login at the end. Moved to the front: an open upload endpoint on the internet is an unauthenticated write path. The pipeline is proven on a trivial "walking skeleton" before any features exist, so feature bugs and infra bugs are never debugged simultaneously.
+
+*This is the sequencing rule (build order). The matching runtime invariant — "no environment publicly reachable without auth, from first deploy, in every environment" — is **D22**. D11 and D22 cross-link; neither replaces the other.*
+
+## D12 — tenantId everywhere, build single-tenant *(superseded by D19)*
+Multi-tenant is deferred (the likely future is more *listeners*, not more tenants). But every record carries a `tenantId` from day one so the eventual soft-tenancy path is a near-free data-model decision, not a brutal rewrite. Never write code that assumes one family.
+
+*This entry is preserved for history. The field is now `libraryId` and the concept "tenant/tenancy" is replaced by "library" throughout — see **D19** for the rename and the reason.*
+
+## D13 — PWA-shaped from the start
+The Android Play Store app (if ever built) is a thin wrapper (TWA) around the PWA, not a separate native codebase. Building PWA-shaped now (responsive, manifest, Cache API) costs little and means no replatform later. The Cache API work doubles as the egress-saving local audio cache.
+
+## D14 — Human merges; Claude Code prepares
+Claude Code branches, pushes, and opens PRs with full descriptions, and surfaces merge conflicts as a Claude-Code/human consult (proposes resolutions, human confirms). The merge click itself is human — it's the moment of consequence and a cheap place for a human glance. Same for main→prod.
+
+## D15 — AGPL-3.0-or-later, public repo
+The repo is public; the running app is private (login-gated, family-only). License is **GNU AGPL-3.0-or-later**, full FSF text in `LICENSE`. Considered MIT/Apache-2.0 (too permissive — wouldn't force a SaaS fork to share back) and "all rights reserved" (incompatible with publishing the source). Considered plain GPL-3.0 (silent on the network-service case — AGPL's § 13 closes that gap). AGPL costs evaluated and accepted: iOS App Store distribution would be friction (Android via TWA is fine — the documented mobile path); future relicensing requires contributor consent (mitigated by D16). Every source file carries a two-line SPDX header (`Copyright (c) <year> Ray Klundt` + `SPDX-License-Identifier: AGPL-3.0-or-later`); missing headers are a `/wrap-sprint` finding. AGPL § 13 obligates the deployed UI to offer users a link to the corresponding source — handled in the running app (footer link to the public repo) by the time Epic 8 ships.
+
+*The "public repo + committed Dockerfiles" half of this posture has a concrete codec consequence in the transcoder — see **D27** (libfdk_aac is forbidden because its binary form is not redistributable).*
+
+## D16 — Contributor terms: DCO + relicensing grant, no CLA bot
+Outside contributions are not expected, but if they arrive, the inbound license matters. Considered: GitHub default "inbound = outbound" (gets us AGPL rights but no relicensing option), a full CLA with a bot like CLA Assistant (overkill for a family repo, adds infra), and a plain DCO (proves authority but does NOT grant relicensing). Chosen: **DCO + an explicit relicensing grant**, both acknowledged by a `Signed-off-by` line and documented in `CONTRIBUTING.md`. Lightweight (no bot, no signed paperwork) and gives the maintainer the option to relicense the whole codebase under any OSI-approved license later without tracking down past contributors. PRs without sign-off don't get merged.
+
+## D17 — Public repo from the first commit; private app
+The repository is public from commit one — there is no private window during which "we'll clean it up later." Considered starting private and flipping to public after Epic 0 or after launch; rejected because (a) AGPL's force-open clause only matters if the source is actually available, (b) a "we'll scrub it later" mode invites secrets/family-detail leakage that's permanent in git history once the repo flips, and (c) committing publicly from day one creates the right hygiene reflex from the start. The **app** stays private (login-gated via Entra, family-only) — public source does not change who can listen. Hygiene rules in `docs/DEVELOPER_GUIDE.md` (no secrets, no real Azure resource names, no family-identifying detail) apply from the first commit. Sprint 0.1's acceptance criteria include a hygiene scan and a correct `.gitignore` *before* `git init`.
+
+## D18 — Node 22 LTS, single version across the repo, npm workspaces
+Frontend, API, and transcoder all pin **Node 22 LTS**. npm workspaces is the monorepo strategy (Static Web Apps' build pipeline expects npm by default; avoids Epic 2 friction). The binding constraint is Static Web Apps managed-functions, which GA-supports `node:22` (verified 2026-05-24 against `learn.microsoft.com/azure/static-web-apps/languages-runtimes`, last updated 2026-02-25 at the time of verification; the older `apis-functions` constraints page is stale and disagrees — the languages-runtimes page is authoritative). Node 20 is also GA but Node 22 LTS has the longer support runway. Node 24 is preview on standalone Functions and not listed for SWA; not a candidate for pin. One Node version across all packages keeps the local-dev story simple and removes a class of "works on the frontend, fails in CI" bugs.
+
+## D19 — `libraryId` everywhere (renamed from `tenantId`), build single-library; supersedes D12
+The application-level field formerly called `tenantId` is renamed to **`libraryId`**, and the concept "tenant/tenancy" is replaced by "library" throughout the app's vocabulary. Reason: "tenant" collides with Azure/Entra terminology (the Entra tenant ID is an unrelated, well-defined Azure concept) and the collision caused real confusion. The new field is purely an application-level label for *which music library / household a song belongs to* — no connection to Entra tenants or Azure subscriptions. Type: plain `string` (no branded type; overkill for now). Default value for the single-library case today: `'slaylist-home'` — generic, not PII, safe to commit. The substance of D12 stands: multi-library is deferred (the likely future is more *listeners*, not more libraries), but every record carries `libraryId` from day one so the soft multi-library path is later additive, not a rewrite. Never write code that assumes one library. The Entra tenant ID retains its real name in any Entra-specific context (e.g., Epic 3 config) — that is exactly the disambiguation this rename buys.
+
+## D20 — Library-scoped authorization now; two-tier admin model deferred
+Roles stay exactly as defined: `listener | uploader | admin` — no platform/global admin role is built today. Reason: a vestigial over-powered global role with no second library to administer is dead weight and an InfoSec liability. But every authorization check is written as **"can this person do this *within this `libraryId`*"** from day one, even though `libraryId` is always `'slaylist-home'` today. Never write a check that assumes global cross-library reach. Today's single `admin` is implicitly the admin **of the one library** `'slaylist-home'`. **Deferred design (recorded so the insight isn't lost):** when multi-library is implemented, the `admin` role splits into a **library-scoped admin** (manages one library, cannot see others) and a **platform/global admin** (manages the app across all libraries). That split also requires a library-membership concept (which users belong to which library, in which role) and library-context-aware authorization. The full apparatus is cheaper to build later — once a second library is real — than to carry now for no present benefit. This decision is the auth-side complement to D19: scoping checks off `libraryId` from day one makes the second admin tier later an *addition*, not a rewrite.
+
+## D21 — Owner identity: store stable id + display name + creator-kid as separate fields
+A song's "owner" answers three different questions, and conflating them was an early mistake — separated cleanly here. Three fields:
+- **`ownerOid`** — the Entra `oid` claim. Stable, opaque, never changes for a given identity. **This is the only field used for authorization** ("can this person delete/modify this song"). Never key authz on a username or display name. The `Oid` suffix makes the source and the authz role explicit and pairs cleanly with the display field.
+- **`ownerDisplayName`** — the Entra `preferred_username` claim (often an email/handle). For display only. Never used in any authz decision.
+- **`createdByKid`** — optional, free-text application metadata: which kid actually made the song, distinct from which login uploaded it (a parent may upload on behalf of a kid). Answers the "who made it" question, not "who owns the record."
+
+Considered keying ownership on `preferred_username` (rejected: changeable, can collide on rename) and storing only the oid (rejected: every list view would need a token-to-name lookup, or names would never render). Public-repo implication: `ownerDisplayName` values are PII and **never** appear in committed fixtures, seeds, or tests — only fake names there (see `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene"). `ownerOid` is opaque and could theoretically be committed without leaking identity, but the same hygiene rule applies for consistency.
+
+## D22 — No environment publicly reachable without authentication, from first deploy
+**Runtime invariant (project-level, every environment, forever):** *No deployed environment is ever reachable on the public internet without authentication in front of it — from the very first deploy, in every environment.* This is the runtime corollary to D11's sequencing rule ("auth before features") — same spirit, sharper expression. D11 says when to build auth; D22 says what must be true the moment something is deployed. They cross-link; neither replaces the other.
+
+**Why a separate entry, not a clarification under D11:** D11 reads as a build-order rule. The invariant is a runtime/deployed-state rule a future agent must hit when planning *any* deploy in *any* epic — Epic 2's dev deploy, Epic 9's prod deploy, an Epic 10+ new environment. Burying it inside a sequencing-titled entry would put it where future-you wouldn't look.
+
+**The Epic 2 mechanism (Path A′):** Epic 2's deploy ships a `staticwebapp.config.json` that requires authentication on every route via SWA's built-in route gate, using the pre-configured Microsoft (AAD) identity provider as the redirect target:
+
+```json
+{
+  "routes": [{ "route": "/*", "allowedRoles": ["authenticated"] }],
+  "responseOverrides": { "401": { "statusCode": 302, "redirect": "/.auth/login/aad" } }
+}
+```
+
+Considered (a) "SWA staging environments are anonymous-reachable by default, so accept the gap and close it in Epic 3" — rejected, this is exactly the "ship open, secure later" anti-pattern D11 exists to kill. Considered (b) "pull Epic 3.1 (custom Entra app registration) forward into Epic 2" — rejected as a Path-A′-equivalent that costs more (real Entra portal work, secrets, complicates Epic 2's "just prove the pipeline" mission) to protect a "hello world" page. Path A′ wins: the gate is real, present from the first deploy, configured in code, available on SWA Free tier, and *evolves* — Epic 3 just swaps the redirect target from `/.auth/login/aad` (pre-configured) to `/.auth/login/<custom-provider-name>` (custom Entra app) when the custom registration lands. The gate is never absent; it only strengthens.
+
+**The temporary corollary that makes Path A′ safe (lives until Epic 3.4 supersedes it in place):** The pre-configured AAD provider trusts *any* Microsoft account, not just family members. So the Epic-2-era gate is **authentication-only, not authorization-restricted**. This is acceptable *only because nothing sensitive ships behind it*. Specifically: until Epic 3's role-based authorization is live, no environment may serve anything beyond the trivial skeleton — no song data, no upload, no real content, no real records, no listable lists of anything meaningful. The "hello world" page and the trivial `/api/health` endpoint are the entire allowed surface. If a future sprint tried to land real content before Epic 3 closed authorization, the any-Microsoft-account gap would suddenly matter — so the rule lives as a guardrail in `CLAUDE.md` and as a reviewer check in `/wrap-sprint` until Epic 3.4 closes the gap. **At that point the corollary is superseded in place — rewritten from an active prohibition to a historical note (same pattern this file uses for superseded decisions, e.g. D12 → D19) — NEVER silently deleted.** The parent invariant remains active forever; the corollary remains visible as a record of the Epic 2→3 window. Rationale: a self-deleting guardrail is a risky pattern — it can fire early (3.4 marked done before the swap fully takes) or the removal logic itself can misfire (a later agent strips a rule that should still apply). Supersession-in-place removes both failure modes.
+
+**Applies to prod, too (Epic 9):** Prod's first deploy (`main` → SWA production environment) must already have role-based auth wired (Epic 3 is a prerequisite for Epic 9 — the existing dependency shape in `INDEX.md` reflects this). Prod never gets a Path-A′-style "any-Microsoft-account" gap; it inherits the full Entra app registration + roles from Epic 3.
+
+## D23 — Vitest as the testing framework; soft-mode CI in scaffolding, hardened at Epic 4.1
+**Framework:** [Vitest](https://vitest.dev/). It is the Vite-native choice (we use Vite for the frontend per D18), runs the same TS toolchain end-to-end (no separate Babel/Jest config), is fast (ESM-first), and has a familiar API. Considered Jest (older, heavier config, slower on TS, less alignment with Vite) and node:test (too minimal — no watch UI, weaker mocking). Vitest wins on alignment and ergonomics.
+
+**Pinned from Sprint 0.2** — when shared types first land. The first real code is born testable; no retrofit pass. Test files co-located (`*.test.ts` next to the source) unless a package explicitly diverges. Root `package.json` exposes `npm test` running Vitest across all workspaces.
+
+**CI test gate — soft-then-hard:**
+- **Epics 0–3 (scaffolding phase, including auth gate): SOFT.** Epic 2's pipeline runs the tests on every push; red/green is visible in the Actions log and on the PR; but a failure does **NOT** block the merge. Rationale: during scaffolding the velocity cost of a hard gate exceeds the protection it offers — there's almost nothing to regress yet. Tests still get written where useful; they just don't gate.
+- **Epic 4 onward: HARD.** Failing tests block merge to `develop`. Rationale: Epic 4 is when real, durable code starts landing (metadata model, API CRUD). Regression risk crosses the threshold where tests must enforce, not advise.
+
+**Critical wiring (matches the supersede-in-place discipline of D22):** "flip the CI test gate from non-blocking to blocking" is an **explicit acceptance criterion in Sprint 4.1**, written into the sprint file as a tracked task — NOT a thing relying on agent memory or the soft→hard date being remembered. This neutralizes the only real failure mode of soft-then-harden: forgetting to harden.
+
+## D24 — Application Insights as the single failure-observability sink, wired in Epic 1
+A budget alert (Epic 1.1) is *cost* observability. **Failure** observability is a separate concern: when a transcode fails, when the queue dead-letters, when the API returns 500, when the deploy errors — where does the human see it? Without an answer, Epic 6/7's reviewer line "a failed transcode produces a diagnosable signal" is unenforceable. Decision: **a single Application Insights instance per environment, wired in Epic 1 alongside the budget alert**, fed by SWA managed functions, the Container App transcoder, and Storage diagnostics. One sink, one place to look. Ingestion cost is trivial at family scale (within or just over the free-tier ingestion quota). Considered separate logging per component (rejected: triples the lookup effort during an incident) and "log to stdout, debug via container logs" (rejected: stdout doesn't follow Storage Queue dead-letter paths, doesn't surface SWA function failures cleanly, and isn't queryable). App Insights' KQL across all three sources is the right shape. Update Epic 6/7 reviewer checks so "diagnosable signal" is verifiable specifically against the App Insights query, not as a vague claim.
+
+## D25 — Storage auth posture: connection string for SWA managed-functions API; Managed Identity for the Container App (platform-forced split)
+This is platform-forced, not a preference: per MS Learn `azure/static-web-apps/apis-functions` (verified 2026-05-24), Managed Identity is **available for "bring your own functions" but NOT for managed functions**. Our architecture uses managed functions (D18 + D22's Path A′ both depend on it). So:
+
+- **The SWA managed-functions API reads/writes Blob + Table Storage via a connection string** stored in SWA application settings and mirrored as a GitHub Actions secret for CI. Never in code, never in committed config files. From Epic 1.3 forward, the storage account connection string is a real managed secret — this raises the operational stakes of the existing "secrets never in code or in the repo" guardrail (`CLAUDE.md`) from academic to load-bearing.
+- **The Container App transcoder uses Managed Identity** to read raw blobs, write finished blobs, and update Table Storage records. No connection string in the transcoder. RBAC role assignments (Storage Blob Data Contributor, Storage Table Data Contributor, scoped to the dev/prod storage account as appropriate) land at Container App creation.
+
+Future path (deferred, see BACKLOG): **bring-your-own functions** is the documented migration to "Managed Identity everywhere," eliminating the connection-string secret entirely. Not now — it costs (Standard tier + a separate Functions resource to manage) and the connection-string posture is well-understood. Cross-references: D7 (dev/prod stores physically separate — the connection string is therefore environment-specific, never shared), D22 (the secret is part of the deploy artifact's configuration, set via SWA app settings).
+
+## D26 — SWA Free tier for both dev and prod now; bumping to Standard for a custom domain is Epic 9's explicit decision
+**Both dev and prod on SWA Free for now.** Reasons: zero cost; no dev/prod config divergence; verified-sufficient for the architecture we built (Path A′ gate uses `routes` + `responseOverrides`, both Free-tier features; managed functions support `node:22` on Free per D18). Considered Standard for both (rejected: $9/mo × 2 = $216/year, all to enable features we don't need yet) and Free-dev + Standard-prod (rejected: introduces config divergence between environments, the exact thing D7 told us to avoid for data stores and that the same principle argues for here).
+
+**Standard tier unlocks (none of which we need yet):** custom domains, `networking.allowedIpRanges`, bring-your-own functions, restricted-access preview environments. Of these, **custom domain** is the realistic future trigger — "kids type a memorable URL" rather than "kids type the *.azurestaticapps.net default." That's a real family-UX feature, not a vanity item.
+
+**Epic 9 owns the custom-domain decision explicitly.** Sprint file flags it as a known future fork ("accept the *.azurestaticapps.net URL for prod OR bump prod SWA to Standard for a custom domain"), not something discovered mid-sprint. If chosen, the bump is prod-only — dev stays Free. The dev/prod config-divergence cost is acceptable in that specific case because dev never needs a custom domain.
+
+## D27 — ffmpeg codec licensing — libfdk_aac is forbidden
+**Title chosen for findability:** a future agent reaching for `libfdk_aac` (the well-known "higher-quality AAC encoder") needs to land on this entry *before* they add it to the Dockerfile. Burying the prohibition inside D9 (titled around the Opus-vs-AAC *format* choice) wouldn't catch them — they're not necessarily re-reading D9 when they're picking an encoder. So this entry stands alone and is titled after the trap.
+
+**Allowed encoders:**
+- **Opus output → `libopus`.** BSD-licensed; ships in every standard ffmpeg distribution; fully compatible with AGPL (D15).
+- **AAC fallback output → ffmpeg's built-in `aac` encoder.** LGPL; ships in every standard ffmpeg distribution; fully compatible with AGPL.
+
+**Forbidden: `libfdk_aac`.** It is the higher-quality AAC encoder in theory, but it is **non-free**: building ffmpeg with it requires `--enable-libfdk_aac --enable-nonfree`, and the resulting binary is **not redistributable**. Our Dockerfile is committed to a **public** repository (D15) — shipping a non-redistributable binary recipe in a public repo collides directly with the AGPL/public-repo posture. The "quality gap" argument for libfdk_aac is real only at low bitrates (≤64 kbps); at the bitrates we'll use for family music playback (≥128 kbps stereo, decided in Sprint 6.1), the built-in `aac` encoder is sonically indistinguishable. The trade we are *not* making: a few percent of quality at very low bitrates we won't use in exchange for breaking a load-bearing licensing constraint.
+
+**Practical consequence for the Dockerfile (Sprint 6.2):** any standard ffmpeg base image (Debian-based, Alpine-based, or community images like `jrottenberg/ffmpeg` without the `nonfree` variant) is fine. Specifically: **do NOT use any image variant tagged `nonfree`, `gpl-nonfree`, or that documents libfdk_aac as enabled.** Sprint 6.2 verifies the chosen image actually includes the built-in `aac` encoder (and excludes libfdk_aac) with `ffmpeg -encoders` — the same kind of platform-specific verification D18 did for SWA's Node runtime; "ffmpeg has aac" (general fact) is not the same checkable claim as "our image has aac" (specific fact).
+
+**Cross-references:** this entry sits at the intersection of three decisions and is reachable from each:
+- **D4** (Container App with ffmpeg in the image) — establishes that ffmpeg ships in a container image we control; D27 constrains *which* ffmpeg.
+- **D9** (Opus preferred, AAC fallback) — establishes the formats; D27 names the encoders for each.
+- **D15** (AGPL-3.0-or-later, public repo) — establishes the licensing posture that makes libfdk_aac unshippable; D27 is the concrete codec consequence.
+
+## D28 — Originals kept indefinitely; raw-uploads area IS the canonical archive (overrides the BACKLOG "lean discard" lean)
+**Originals are retained forever.** The raw uploaded file is the kids' actual creation; everything downstream (transcoded Opus/AAC, metadata records, derived previews) can be regenerated from it. The transcoded copies cannot regenerate the original. Discarding originals is a one-way door that loses irreplaceable family work the moment a transcode regression, a format change, or a quality-bump motivation lands. Storage cost at family scale is pennies (~10 users uploading occasionally — even hundreds of uploads at ~10 MB each is well under $1/month on Blob Storage Hot tier; orders of magnitude less on Cool/Archive tiers if ever needed).
+
+**Hard guardrail derived from this decision:** the **`raw-uploads` blob area is the canonical archive, NOT transient staging.** No future agent writes a "clean up old raw-uploads" maintenance job, a TTL/lifecycle policy that auto-deletes raw blobs, or a "since the song is `ready`, the raw is unneeded" pruner. That would be deleting the only originals. Lifecycle rules on `raw-uploads`, if any are ever added, are tier-transition only (Hot → Cool → Archive for cost optimization), **never** deletion-class rules. Reflect this in Sprint 1.3's storage account configuration and in `docs/ARCHITECTURE.md`'s description of the raw-uploads area.
+
+Considered (the previous "lean discard" framing): discard raw after successful transcode to save storage. Rejected on the cost/benefit inversion: tiny ongoing cost for keeping vs. irrecoverable loss for discarding, with no operational benefit at family scale. Revisit only if storage ever becomes a material cost line item (estimated: thousands of multi-hundred-MB uploads — not a realistic family-scale scenario).
+
+Cross-references: **D3** (Table Storage as metadata only; the audio file itself is in blob and now explicitly archival), **D8** (filename format is plumbing; the song title lives in metadata — the archive filename's title-slug is for restore readability, the canonical identifier is the shortid), **D33** (Table Storage backup — same "don't lose the kids' stuff" posture extended to metadata).
+
+## D29 — TypeScript strict mode pinned from Sprint 0.2 (root tsconfig: `strict: true` + `noUncheckedIndexedAccess: true`)
+The single highest-leverage TypeScript configuration. Without `strict: true` from day one, the codebase accumulates implicit `any`s, null/undefined hazards, and silent unchecked-cast bugs that are expensive to retrofit (every offending site has to be tightened individually under the pressure of "now the build is broken in 47 places"). `noUncheckedIndexedAccess: true` is the second-highest-leverage flag — it catches `array[i]` being possibly `undefined`, which is exactly the bug class that produces "works in dev, NPE in prod with one specific data shape" failures.
+
+**Pinned in the root `tsconfig.json` at Sprint 0.2** when the workspaces structure first lands. All workspaces (`/shared`, `/frontend`, `/api`, `/transcoder`) extend the root via `"extends": "../tsconfig.json"`; no workspace overrides these two flags downward without an explicit reviewer-approved exception (and a comment explaining why).
+
+Considered: leaving strictness off "for scaffolding speed" — rejected, the speed gain is illusory (you write the same code; strict mode just tells you which assumptions are wrong, sooner). Considered: `strict: true` only, not `noUncheckedIndexedAccess` — rejected, the second flag's bug class is exactly the kind that hides in family-scale dev data and surfaces with real users. Cheap to add now; expensive to retrofit.
+
+## D30 — Azure deploy auth via GitHub Actions OIDC federation; NO long-lived service-principal client secret
+The deploy credential is the highest-blast-radius secret in CI: it has permission to write to Azure resources. Stored long-lived in GitHub Secrets (the classic "service principal + client secret" pattern), it is a single value that — if leaked, forgotten, or rotated incorrectly — can be replayed indefinitely.
+
+**Use OIDC federation instead.** A dedicated Entra app registration is created for deploy with **federated credentials** keyed to this specific GitHub repository and branch (e.g., `repo:rayklundt/slaylist:ref:refs/heads/develop` and `repo:rayklundt/slaylist:ref:refs/heads/main`). At deploy time, GitHub Actions presents a short-lived OIDC token; Azure validates it via the federation; the workflow gets a short-lived access token scoped to the granted RBAC. **No client secret is ever stored in GitHub Secrets.** Nothing to leak, nothing to rotate.
+
+**Public-repo amplification:** for a public repo, a leaked client secret would be the kind of incident that requires immediate rotation under pressure. OIDC removes the artifact that could leak.
+
+Considered: classic SP + client secret (rejected — high-blast-radius long-lived credential, modern Azure docs explicitly recommend OIDC for new setups since 2022). Considered: SP + certificate auth (rejected — still a long-lived credential to manage; OIDC is strictly better). Free, supported, MS-recommended.
+
+**RBAC scope on the federated identity:** Contributor on the dev resource group (Epic 2); Contributor on the prod resource group (Epic 9). NEVER subscription-scope. Cross-references: **D7** (dev/prod separation — the federation has two role assignments, one per RG, not one over both), **D25** (different scope: D25 is runtime app→storage auth; D30 is CI/CD deploy auth — both follow the "no long-lived secret if avoidable" principle).
+
+## D31 — Public-repo GitHub hardening baseline: secret scanning, push protection, Dependabot, CodeQL — all enabled at Sprint 0.1
+Public repos get a set of free GitHub security features that are negligent to leave off:
+
+- **Secret scanning** — detects committed secrets across many providers; alerts on history scans and ongoing pushes.
+- **Push protection** — *blocks* secrets at `git push` time before they reach GitHub. This is the critical control: it prevents the permanent-history nightmare that `git filter-repo` after-the-fact only partially mitigates on a public repo (mirrors, forks, indexers may already have the secret).
+- **Dependabot security updates** — auto-PRs for dependencies with known vulnerabilities. Per D15/D17 the repo is public and the dep graph is visible; published vulnerabilities apply to us as fast as anyone else.
+- **CodeQL code scanning** — SAST for TypeScript; free on public repos; default config is sufficient for our surface.
+
+(Dependabot *version* updates — regular non-security dep refresh — is recommended but optional; can be enabled when dep churn becomes painful to manage manually.)
+
+**Enabled at Sprint 0.1** in the same human-executed pass that creates the repo and configures branch protection — these settings have no meaningful cost (free, near-zero ongoing noise at this scale) and the cost of *not* having push protection is "a secret might already be in your history and you don't know yet."
+
+**IS-4 pair:** the 0.1 guide includes a one-step post-push verification — `gh secret-scanning` (or the equivalent UI check) immediately after the first push, confirming GitHub agrees no secret was detected. If anything is flagged, rotate immediately and remove from history.
+
+Cross-reference: **D17** (public repo from commit one) — these features ARE part of "public repo done right"; not enabling them is a partial implementation of D17.
+
+## D32 — No PII in logs: log `ownerOid` not `ownerDisplayName`; log `songId` not `title`; sanitize ffmpeg stderr
+D24 made Application Insights the failure-observability sink. Once data lands in App Insights, it is indexed, queryable, retained per the ingestion plan, and difficult to selectively remove. So the "what goes in the log" rule must be tight *before* the first log line.
+
+**Three concrete leak channels at family scale:**
+
+1. **`ownerDisplayName`** — the Entra `preferred_username`, typically an email or handle. PII by D21's explicit framing. **Log `ownerOid` instead** (opaque, non-PII, sufficient for tracing). If a human investigating an incident needs the display name, they can join `ownerOid` to the Table Storage record manually — never put the display name in the log line itself.
+2. **Song `title`** — kids name their songs things like "Sophia's Song," "Mom's Birthday Beat," "Ethan vs the Dragon." Titles will contain real first names, family member references, occasional location/event hints. **Log `songId` instead** (uuid-like, non-PII). Same join-at-investigation-time pattern as above.
+3. **ffmpeg stderr** — the transcoder captures ffmpeg stderr for diagnostics, but ffmpeg embeds the *input filename* in nearly every line of its output, and the input filename is built from `{title-slug}_{timestamp}_{shortid}.{ext}` (D8). So the title-slug PII rides the stderr capture straight into App Insights. **Two acceptable mitigations** (Sprint 6.1 picks one):
+   - **(a)** the transcoder downloads the raw blob into a local path named after the `songId` (not the human filename), runs ffmpeg against the songId-named local file, and renames the *output* to the human-readable finished name at write-to-finished time. ffmpeg's stderr only ever sees the songId.
+   - **(b)** the transcoder captures ffmpeg's stderr to memory, substitutes the input filename with the songId in every captured line, then emits the sanitized text to App Insights. The raw stderr never reaches App Insights.
+
+(a) is cleaner — eliminates the leak channel rather than filtering it — and is the recommended default; (b) is acceptable if some upstream constraint requires the human filename for the actual ffmpeg invocation.
+
+**Operational guardrails (also in `CLAUDE.md`):** never use a logging helper that takes "an object" and serializes everything — always log explicit fields, so PII fields can't ride in by default. The `/wrap-sprint` InfoSec check verifies no log statement passes `ownerDisplayName` or `title` (or any field path ending in those) into App Insights telemetry.
+
+Cross-references: **D21** (ownerDisplayName declared PII; the canonical anchor), **D24** (App Insights is the sink), **D7** (dev/prod separate — even dev App Insights gets the same discipline; we do not "relax in dev" because the same code ships to prod).
+
+## D33 — Table Storage backup: nightly export to a separate blob container in the same storage account
+Blob Storage has soft-delete + versioning (Sprint 1.3) — accidental deletes and overwrites of audio are recoverable within the retention window. **Table Storage has neither.** No native versioning, no native point-in-time restore. If a bug deletes records (e.g., a faulty cleanup script, a runaway delete-all-where-state=failed query), or if a metadata corruption hits, recovery requires a backup we took ourselves.
+
+**Decision: nightly export of the entire Song table to a `table-backups` blob container in the same storage account.** Implementation in Epic 4 (when the table actually has records to back up — see new Sprint 4.4). Export format: JSON Lines (one record per line) — append-only, easy to diff between days, easy to re-import. Cost at family scale: trivial (a few KB to a few MB per day, retained for a small window).
+
+**Why same storage account, not a separate one?** The realistic recovery scenario at this scale is "bug deleted records" or "operator mistake," not "storage account compromised/deleted." For the latter, a *separate-account* backup is what's needed — that's documented in BACKLOG as a future enhancement (already there). Same-account backup is the right scope now; cross-account is the upgrade.
+
+**Retention:** keep 30 days of nightly backups by default (≈30 small files); tunable in Sprint 4.4 acceptance. Older backups auto-prune via a lifecycle rule on the `table-backups` container — this lifecycle rule deletes *backups* and is fine; it does NOT contradict D28 (which forbids lifecycle deletion on `raw-uploads` specifically).
+
+**Restore procedure documented in `docs/infra` notes at Sprint 4.4 close-out:** how to import a backup file back into the live Table — so a future panicked operator has a checklist, not an improvisation pass.
+
+Cross-references: **D3** (Table Storage as metadata store), **D7** (dev/prod separate — each environment backs up its own table independently), **D28** (originals kept — D33 extends "don't lose the kids' stuff" from audio to metadata).

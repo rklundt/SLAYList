@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+# build output
+dist/
+build/
+.vite/
+# local env / secrets — NEVER commit
+.env
+.env.*
+*.local
+local.settings.json
+*.pem
+*.key
+# editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# logs
+*.log
+npm-debug.log*
+# azure / func / swa local state
+.azure/
+.swa/
+swa-db-connections/
+bin/
+obj/
+# Claude Code per-user state (D17 hygiene + Sprint 0.1 acceptance)
+# .claude/commands/ and .claude/settings.json ARE committed (repo-shared);
+# .claude/settings.local.json holds per-machine permission grants — NEVER commit.
+.claude/settings.local.json

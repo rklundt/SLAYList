@@ -1,0 +1,127 @@
+# Developer Guide
+
+For future human developers (and AI agents). Read `CLAUDE.md` and `docs/ARCHITECTURE.md` first; this is the practical "how to work on it" companion.
+
+## Mental model in one paragraph
+
+A React/TypeScript PWA talks to a light TypeScript API (both hosted on an Azure Static Web App). Uploads land as raw files in Blob Storage and create a song record in Table Storage marked `processing`. A blob event flows through Event Grid into a queue, which wakes a scale-to-zero Container App that runs ffmpeg, writes the finished Opus/AAC back to Blob Storage, and flips the record to `ready`. The browser caches finished audio so replays are cheap. Login and roles are Entra ID. Dev and prod are separate Azure environments driven by the `develop` and `main` branches.
+
+## Repo layout (target)
+
+```
+/                       repo root
+  CLAUDE.md             AI/human entry point — read first
+  README.md             quickstart
+  /docs                 ARCHITECTURE, DECISIONS, this guide, VERSIONS, BACKLOG
+  /.sprints             epics/sprints + INDEX.md
+  /.claude/commands     slash-command definitions (/start-sprint, /wrap-sprint, /close-sprint) — Claude Code's expected location
+  /frontend             React + TS (Vite) PWA
+  /api                  TypeScript API (Static Web App integrated functions)
+  /transcoder           Container App: ffmpeg worker + Dockerfile
+  /shared               shared TypeScript types (Song, roles, states) used by frontend + api + transcoder
+  /infra                infra notes / scripts / IaC if/when added
+  /.github/workflows    GitHub Actions pipelines
+```
+
+## Branches & environments
+
+- `develop` → auto-deploys to the **dev** Azure environment.
+- `main` → auto-deploys to **prod**. Human-gated merge.
+- Branch protection on `main` (and ideally `develop`): no direct pushes, PR required.
+- Feature work happens on short-lived branches off `develop`, named `sprint/<epic>-<sprint>-<slug>`.
+
+## The sprint loop (practical)
+
+1. `/start-sprint <epic>/<sprint>` — agent reloads context (CLAUDE.md → ARCHITECTURE → DECISIONS → the sprint file), audits what's already built, and proposes a plan. You approve before it breaks ground.
+2. Build the user stories.
+3. `/wrap-sprint` — five skeptical reviewers (sr dev, solution architect, devops, infosec, support) produce critical/moderate/low findings. **Any critical finding blocks the "proceed" recommendation.** You decide what to fix (including "fix everything now").
+4. `/close-sprint` — agent updates docs/INDEX for anything the sprint changed (and flags contradictions), prepares the PR to `develop`, and on conflicts runs a Claude-Code/human consult rather than auto-resolving. You perform the merge.
+
+## Local development
+
+(Filled in concretely by Epic 0.) Goal: one command runs frontend + API locally; the transcoder is runnable/testable locally against a local or dev storage account.
+
+## Secrets
+
+Never in code, never committed. Local dev uses untracked local config; CI uses GitHub Actions secrets; runtime uses Azure app configuration. If you find a secret in the repo, treat it as compromised and rotate it.
+
+**Azure deploy auth uses OIDC federation (D30), not a stored client secret.** GitHub Actions presents a short-lived JWT; Azure validates via federation. The federated credential is keyed to this specific repo and branch. There is no client-secret artifact to leak.
+
+**Runtime app→storage auth follows D25's split posture:**
+- SWA managed-functions API: connection string (Managed Identity unavailable on managed functions — platform-forced). Stored as SWA app setting + GitHub Actions secret.
+- Container App transcoder: Managed Identity + RBAC (Storage Blob Data Contributor + Storage Table Data Contributor).
+
+**Rotation policy:**
+- The storage account connection string (D25): rotate annually or on suspicion. Procedure: regenerate the secondary key in the Azure portal → update both the SWA app setting and the GitHub Actions secret → verify next deploy → regenerate the primary key → update both again. Documented as a `docs/infra` runbook before Epic 9.
+- The SWA deployment token: rotate annually or on suspicion. Same swap-then-verify procedure.
+- The Application Insights connection string (D24): rotation only on suspicion (low blast radius — it grants telemetry-write only).
+- OIDC federation: nothing to rotate. That's the point.
+
+## Logging discipline (D32)
+
+Application Insights (D24) is indexed, queryable, and hard to selectively scrub after the fact — so what enters the log must be controlled at the source.
+
+**Hard rules:**
+- Log **`ownerOid`** (opaque Entra `oid`), NEVER `ownerDisplayName` (PII per D21).
+- Log **`songId`**, NEVER `title` (titles contain kids' first names, family references, event names).
+- Never use a log helper that takes "an object" and serializes everything — always pass explicit fields, so a PII field can't ride in by default.
+- Transcoder: never let ffmpeg's stderr flow unsanitized to App Insights. ffmpeg embeds the input filename (which is built from the title-slug per D8) in nearly every line. Mitigations (Sprint 6.1 picks one): songId-based local filenames during transcode (preferred — eliminates the leak channel) OR filename→songId substitution in captured stderr before emitting (acceptable filter).
+
+`/wrap-sprint` InfoSec check verifies these rules every sprint that adds log statements.
+
+## Public-repo hygiene
+
+This repository is public from its first commit (D17), AGPL-3.0-or-later. The *app* it builds is private (login-gated, family-only) — never let one fact erode the other.
+
+What must NOT land in any committed file:
+
+- Secrets, tokens, connection strings, SAS URLs, Entra client secrets, storage keys.
+- **Real Azure resource names** — storage account names, Container App names, Static Web App names, resource group names. Use placeholders in docs (`<storage-account>`, `<resource-group>`) and read real values from environment variables / GitHub secrets at runtime. Real names land in Azure config and CI secrets only.
+- **Family-identifying detail** — kid names, real ages, the family's address or location, school names, neighborhood. Code and tests refer to generic "kid 1", "uploader", "listener", etc.
+- Real email addresses other than the maintainer's copyright line. Use `you@example.com` / `family@example.com` in examples.
+- Real `ownerDisplayName` values (Entra `preferred_username`, typically an email/handle — PII). Use fake names like `"Alice"`, `"Test Uploader"`, or `"user@example.com"` in fixtures and tests. For `ownerOid` use any opaque placeholder (e.g., `"00000000-0000-0000-0000-000000000001"`).
+- The `libraryId` field itself is safe to commit at its current value `'slaylist-home'` (generic application label, not PII, not the Entra tenant ID). If a multi-library future ever introduces real per-family identifiers, those go in config, never in code.
+- **Claude Code per-user local state** — `.claude/settings.local.json` (holds local permission grants and per-machine preferences) is `.gitignore`d. `.claude/commands/` (the three project slash commands) and `.claude/settings.json` (if present — repo-shared settings) ARE committed. If you add a new tool-permission grant during work, it lands in `settings.local.json` by design; do not move it into the shared `settings.json` unless you mean every developer/agent to inherit it.
+
+What is fine to commit publicly:
+
+- Architecture, decisions, sprint plans, prompts (all of this).
+- Generic code, generic types, generic seed data.
+- The maintainer's name in copyright headers and `CONTRIBUTING.md` (Ray Klundt — by deliberate choice, see D15/D17).
+
+If you find a violation, treat the affected value as compromised (rotate the secret, rename the resource, etc.) and remove it in a follow-up commit. `git history` is forever on a public repo — prevention beats cleanup.
+
+## Node version
+
+Node **22 LTS** is pinned across the whole repo (frontend, API, transcoder). The API runtime is the binding constraint — Static Web Apps' managed-functions API supports `node:22` as GA (verified 2026-05-24, see `docs/VERSIONS.md`). Frontend and transcoder follow the API for consistency. Do not split versions across packages.
+
+## Testing (D23)
+
+Framework: **Vitest**, pinned from Sprint 0.2. Tests are co-located (`*.test.ts` next to the source) unless a package explicitly diverges. `npm test` at the root runs across all workspaces.
+
+CI gate is **soft** during Epics 0–3 (scaffolding) — tests run on every push and the result shows red/green in the Actions log and PR check, but a failure does **not** block merge. From **Sprint 4.1 onward** the gate is **hard** — failing tests block merge to `develop`. The flip is an explicit Sprint 4.1 acceptance criterion, not relying on memory; the soft-mode breadcrumb is a comment in the Epic 2 workflow file that Sprint 4.1 removes.
+
+## CI
+
+**GitHub Actions** is the CI provider. Workflows live in `.github/workflows/`. The first workflow lands in Epic 2 (build + deploy + soft-mode tests + auth-gate verification). The transcoder image pipeline is a separate workflow added in Sprint 6.0. Prod-deploy extension lands in Sprint 9.2.
+
+## Observability (D24)
+
+**Application Insights** is the single failure-observability sink, one instance per environment (dev created in Sprint 1.1, prod in Sprint 9.1). SWA managed functions, the Container App transcoder, and Storage diagnostics all feed into it. When something fails — a transcode, a queue dead-letter, a deploy, an API 500 — App Insights is where you look. Save useful KQL queries in `docs/infra` notes so they're not re-derived under pressure.
+
+The budget alert (Sprint 1.1 / 9.1) is **cost** observability — a separate concern from failure observability. Don't conflate.
+
+## Storage auth (D25)
+
+The SWA managed-functions API authenticates to Storage via a **connection string** (Managed Identity is unavailable on managed functions — platform-forced). The connection string lives in SWA app settings + GitHub Actions secrets, never in code. The Container App transcoder uses **Managed Identity** + RBAC role assignments. Split auth posture is intentional and recorded in D25; don't try to unify it without first moving to bring-your-own-functions.
+
+## When you want to change an architectural decision
+
+1. Find it in `docs/DECISIONS.md`.
+2. If it's there, the alternative was likely already considered — read why it was rejected.
+3. If you still think it should change, raise it with the human with the tradeoff. Do not change it silently.
+4. If approved, update DECISIONS.md (new entry superseding the old) and ARCHITECTURE.md in the same PR.
+
+## Cost discipline
+
+This should cost near-nothing at rest. Keep the Container App scale-to-zero, keep audio browser-cacheable, keep dev resources minimal. The Epic 1 budget alert is the safety net — don't disable it.
