@@ -194,6 +194,13 @@ Cross-reference: **D17** (public repo from commit one) — these features ARE pa
 
 *Implementation note (Sprint 0.1 close-out):* secret scanning, push protection, and Dependabot security updates enabled successfully at Sprint 0.1. **CodeQL default-setup returned HTTP 404** because GitHub's default-setup endpoint requires detected source languages to configure, and the Sprint 0.1 initial commit is markdown-only. CodeQL retry is tracked as an explicit Sprint 0.2 acceptance criterion (once TypeScript code lands, the endpoint will recognize a language and configure). D31's baseline is unchanged — all four features are required; one is just enabled one sprint later than originally planned.
 
+*Resolution (Sprint 0.2 post-merge):* CodeQL configured successfully against the post-merge develop branch (TypeScript detected). **The correct HTTP verb is `PATCH`, not `PUT`** — the Sprint 0.1 and Sprint 0.2 retry attempts both used PUT, which 404'd for two compounded reasons: (1) Sprint 0.1's repo had no language for the endpoint to recognize anyway, and (2) the verb was wrong even when the language existed. The correct command is:
+```
+gh api -X PATCH repos/rklundt/SLAYList/code-scanning/default-setup \
+  --input <(echo '{"state":"configured","query_suite":"default"}')
+```
+Verified state: `gh api repos/rklundt/SLAYList/code-scanning/default-setup --jq '.state'` returns `"configured"`. Initial CodeQL scan run queued automatically on configuration. **D31 baseline now 4/4 complete.**
+
 ## D32 — No PII in logs: log `ownerOid` not `ownerDisplayName`; log `songId` not `title`; sanitize ffmpeg stderr
 D24 made Application Insights the failure-observability sink. Once data lands in App Insights, it is indexed, queryable, retained per the ingestion plan, and difficult to selectively remove. So the "what goes in the log" rule must be tight *before* the first log line.
 
