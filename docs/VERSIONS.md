@@ -8,6 +8,7 @@ Tracks notable versions/milestones of the project and key dependency/tooling ver
 |---|---|---|
 | 0.0.1 | (scaffold) | Initial project scaffold: docs, sprint structure, command definitions. No code yet. |
 | 0.0.2 | 2026-05-24 | Pre-Epic-0 alignment: AGPL-3.0-or-later licensing (D15), DCO + relicensing grant (D16), public repo from commit one (D17), Node 22 LTS + npm workspaces pinned (D18). |
+| 0.0.3 | 2026-05-24 | Sprint 0.1 complete: public GitHub repo at `rklundt/SLAYList`; `develop` + `main` with branch protection; D31 baseline 3/4 (secret scanning, push protection, Dependabot security updates) — CodeQL deferred to Sprint 0.2 retry because GitHub's default-setup requires detected source languages and the initial scaffold is markdown-only. |
 
 ## Key tooling / dependency versions
 

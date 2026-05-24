@@ -31,7 +31,7 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 ## Epics & sprints
 
 ### Epic 0 — Foundations (repo, local scaffold, walking skeleton)
-- ⬜ 0.1 Repo + branches + protection
+- ✅ 0.1 Repo + branches + protection — public repo at github.com/rklundt/SLAYList; CodeQL retry deferred to 0.2
 - ⬜ 0.2 Monorepo scaffold + shared types skeleton
 - ⬜ 0.3 Local run (frontend + API "hello") with one command
 - ⬜ 0.4 Foundational docs + verify slash-commands wired

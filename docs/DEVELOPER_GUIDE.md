@@ -88,6 +88,7 @@ What is fine to commit publicly:
 - Architecture, decisions, sprint plans, prompts (all of this).
 - Generic code, generic types, generic seed data.
 - The maintainer's name in copyright headers and `CONTRIBUTING.md` (Ray Klundt — by deliberate choice, see D15/D17).
+- The maintainer's git author email (currently `rayklundt@outlook.com`, visible in every commit's metadata via `git log`). This is intrinsic to git and is required by the DCO sign-off (D16) — it is NOT a public-repo-hygiene violation, just a public fact of using git with DCO. Do not flag in `/wrap-sprint`.
 
 If you find a violation, treat the affected value as compromised (rotate the secret, rename the resource, etc.) and remove it in a follow-up commit. `git history` is forever on a public repo — prevention beats cleanup.
 
