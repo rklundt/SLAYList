@@ -31,11 +31,12 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 ## Epics & sprints
 
 ### Epic 0 — Foundations (repo, local scaffold, walking skeleton)
+**Status: ✅ DONE.** Clone the repo, `pnpm install`, `pnpm dev`, browse `http://localhost:5193` — the walking skeleton runs locally end-to-end. No Azure resources yet (those start at Epic 1).
 - ✅ 0.1 Repo + branches + protection — public repo at github.com/rklundt/SLAYList; CodeQL retry deferred to 0.2
 - ✅ 0.2 Monorepo scaffold + shared types skeleton — pnpm 11.3.0 (D34 supersedes D18's npm pin); CodeQL configured post-merge via PATCH (D31 baseline 4/4)
 - ✅ 0.3 Local run (frontend + API "hello") with one command — 4-process `pnpm dev` stack (Azurite + tsc-watch + func + Vite); D35 (Azurite); 12 tests passing
-- ⬜ 0.4 Foundational docs + verify slash-commands wired
-- **Exit:** clone, one command, see the app locally. No Azure.
+- ✅ 0.4 Foundational docs + verify slash-commands wired — doc-accuracy sweep (clean; minor README/INDEX drift fixed); /start-sprint, /wrap-sprint, /close-sprint all proven invokable through active use across Epic 0's sprints (every sprint produced signed-off PRs merged to develop)
+- **Exit:** clone, one command, see the app locally. No Azure. ✅ Met.
 
 ### Epic 1 — Azure landing zone (dev resources)
 - ⬜ 1.1 Resource group + naming + budget alert ($15/mo) + Application Insights (D24)

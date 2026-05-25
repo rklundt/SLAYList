@@ -16,7 +16,7 @@ Compare what was actually built against the docs and flag misalignment:
 - **`docs/VERSIONS.md`** — pin any new versions / milestones; record any dated verification (e.g., re-verified SWA runtime support).
 - **`docs/BACKLOG.md`** — resolve any "open questions" this sprint answered (e.g. input allowlist, output format, retention window); move emergent items in.
 - **`.claude/commands/wrap-sprint.md`** — if a `/wrap-sprint` check was time-bounded to this sprint (e.g., the D22 corollary InfoSec check retired by Epic 3.4), supersede the check in place — rewrite to a one-line historical pointer, never delete.
-- **`.sprints/INDEX.md`** — update this sprint's status (✅), and re-check whether anything built changes a LATER sprint's assumptions; note it on that sprint if so.
+- **`.sprints/INDEX.md`** — update this sprint's status (✅), and re-check whether anything built changes a LATER sprint's assumptions; note it on that sprint if so. **If this is the last sprint of an epic**, also add (or update) an explicit `**Status: ✅ DONE.**` line under the epic header, with the epic's exit criterion baked into the wording so the status doubles as a record of what "done" actually meant. This convention was established by Sprint 0.4's close — every epic close from here on uses it so future readers don't have to infer epic-completion by visually checking that every sub-sprint happens to be ✅.
 
 Present the proposed doc edits to the human. Apply on confirmation. **Docs must be true before the PR — a stale architecture doc is worse than none.**
 
