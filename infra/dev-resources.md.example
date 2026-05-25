@@ -1,6 +1,6 @@
 # Dev environment resources — local notes template
 
-**This is the `.example` template that IS committed.** Copy this to `docs/infra/dev-resources.md` (gitignored) and fill in the real values as Sprint 1.1+ creates each resource.
+**This is the `.example` template that IS committed.** Copy this to `infra/dev-resources.md` (gitignored) and fill in the real values as Sprint 1.1+ creates each resource.
 
 Per `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene":
 - Real Azure resource names, tenant ID, subscription ID, connection strings, deployment tokens **MUST NOT** land in any committed file.
@@ -83,7 +83,7 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 
 ## Useful KQL queries
 
-(Saved per `docs/DEVELOPER_GUIDE.md` "Observability" — "save useful KQL queries in `docs/infra` notes so they're not re-derived under pressure.")
+(Saved per `docs/DEVELOPER_GUIDE.md` "Observability" — "save useful KQL queries in `infra/` notes so they're not re-derived under pressure.")
 
 ### Smoke test: did anything land in the last hour?
 

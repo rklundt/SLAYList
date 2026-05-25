@@ -2,6 +2,34 @@
 
 This file is the entry point for any AI or human developer working on this project. If you are Claude Code starting a session, read this file, then `docs/ARCHITECTURE.md`, then the current sprint file, before writing anything.
 
+## The doc map (read these to orient)
+
+Active during every session — read in this order on session start:
+
+- **`CLAUDE.md`** (this file) — guardrails + entry point
+- **`docs/ARCHITECTURE.md`** — the settled design (the diagram + component reasoning)
+- **`docs/DECISIONS.md`** — D1–DN, why everything is the way it is, what alternatives were rejected (supersede-in-place pattern; never silently rewritten)
+- **`docs/DEVELOPER_GUIDE.md`** — practical "how to work on it" (public-repo hygiene rules, Node version policy, logging discipline, storage auth posture, filesystem requirements)
+- **`docs/VERSIONS.md`** — pinned versions, dated runtime-verification trail (the place to check before bumping Node/deps/runtime, and to record new pins)
+- **`docs/BACKLOG.md`** — "Deferred by design," "Open questions to resolve at the right epic," "Emergent" — consult before assuming a problem is novel
+- **`.sprints/INDEX.md`** — epic/sprint map + status (✅/🟡/⬜); the dependency-shape diagram is here
+
+When relevant to the current task:
+
+- **`.sprints/epic-N-<name>/SPRINTS.md`** — the current epic's sprint file with user stories + acceptance criteria
+- **`.claude/commands/{start-sprint,wrap-sprint,close-sprint}.md`** — the slash-command bodies (contain the STOP CHECK for `/wrap-sprint` and the Phase A/B split for `[Human, guided]` sprints)
+- **`infra/`** — canonical home for naming convention (`naming-convention.md`), gitignored real-values notes (`dev-resources.md`, `prod-resources.md`), and future restore-procedure runbooks. NOT `docs/infra/` — the canonical location is at repo root per Sprint 0.2 / `docs/DEVELOPER_GUIDE.md` repo layout
+- **`docs/guides/<sprint>-*.md`** — sprint-specific human walkthroughs (only when a `[Human, guided]` sprint needs portal steps)
+
+Public-repo meta (rarely change but live during the project):
+
+- **`LICENSE`** — AGPL-3.0-or-later (FSF verbatim text)
+- **`CONTRIBUTING.md`** — DCO + relicensing grant; sign-off mechanics (`git commit -s`)
+- **`SECURITY.md`** — private vulnerability reporting + explanation of the residual dev-only Dependabot alerts so a casual repo browser doesn't read "19 open alerts" as neglect
+- **`README.md`** — newcomer quickstart (Node version, `pnpm install`, `pnpm dev`); audience overlap with this file is small
+
+If a path above doesn't exist yet, it's because the relevant sprint hasn't created it — don't assume it should already exist.
+
 ## What this project is
 
 A private, login-gated web app where a family's kids upload songs they made (with AI tools like Suno) and play them back on their phones, tablets, and laptops. It is **not** a commercial product, not for public sharing, not for sale. Think "private family music library that happens to live on the internet."

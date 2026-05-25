@@ -41,5 +41,7 @@ obj/
 # "Public-repo hygiene", real Azure resource names + identifiers never land in
 # committed files. The `.example` templates ARE committed; the populated
 # `*-resources.md` files are NOT. Sprint 1.1+ populates these locally.
-docs/infra/dev-resources.md
-docs/infra/prod-resources.md
+# (Path is `infra/` at repo root, per the canonical location established in
+# Sprint 0.2 / DEVELOPER_GUIDE.md repo layout — NOT `docs/infra/`.)
+infra/dev-resources.md
+infra/prod-resources.md

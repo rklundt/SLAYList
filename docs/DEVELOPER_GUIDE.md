@@ -94,7 +94,7 @@ Never in code, never committed. Local dev uses untracked local config; CI uses G
 - Container App transcoder: Managed Identity + RBAC (Storage Blob Data Contributor + Storage Table Data Contributor).
 
 **Rotation policy:**
-- The storage account connection string (D25): rotate annually or on suspicion. Procedure: regenerate the secondary key in the Azure portal → update both the SWA app setting and the GitHub Actions secret → verify next deploy → regenerate the primary key → update both again. Documented as a `docs/infra` runbook before Epic 9.
+- The storage account connection string (D25): rotate annually or on suspicion. Procedure: regenerate the secondary key in the Azure portal → update both the SWA app setting and the GitHub Actions secret → verify next deploy → regenerate the primary key → update both again. Documented as a `infra/` runbook before Epic 9.
 - The SWA deployment token: rotate annually or on suspicion. Same swap-then-verify procedure.
 - The Application Insights connection string (D24): rotation only on suspicion (low blast radius — it grants telemetry-write only).
 - OIDC federation: nothing to rotate. That's the point.
@@ -151,7 +151,7 @@ CI gate is **soft** during Epics 0–3 (scaffolding) — tests run on every push
 
 ## Observability (D24)
 
-**Application Insights** is the single failure-observability sink, one instance per environment (dev created in Sprint 1.1, prod in Sprint 9.1). SWA managed functions, the Container App transcoder, and Storage diagnostics all feed into it. When something fails — a transcode, a queue dead-letter, a deploy, an API 500 — App Insights is where you look. Save useful KQL queries in `docs/infra` notes so they're not re-derived under pressure.
+**Application Insights** is the single failure-observability sink, one instance per environment (dev created in Sprint 1.1, prod in Sprint 9.1). SWA managed functions, the Container App transcoder, and Storage diagnostics all feed into it. When something fails — a transcode, a queue dead-letter, a deploy, an API 500 — App Insights is where you look. Save useful KQL queries in `infra/` notes so they're not re-derived under pressure.
 
 The budget alert (Sprint 1.1 / 9.1) is **cost** observability — a separate concern from failure observability. Don't conflate.
 
