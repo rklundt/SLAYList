@@ -2,25 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Placeholder API workspace entry point.
+ * Function-registration entry point for the SLAYList API.
  *
- * Real Azure Static Web Apps managed-functions structure (per D18: Node 22,
- * apiRuntime "node:22"; per D25: connection-string storage auth — not Managed
- * Identity, platform-forced) lands in Sprint 0.3 / Epic 4.
+ * Azure Functions v4 programmatic model (D18 + verified per
+ * https://learn.microsoft.com/en-us/azure/static-web-apps/add-api): each
+ * function module calls `app.http(...)` at module load time. This file
+ * imports them all so a single entry brings them into the runtime's
+ * function registry. Add new function modules by importing them here.
  *
- * This file exists to prove the `@slaylist/shared` workspace import resolves
- * and type-checks (Sprint 0.2 acceptance).
+ * The `package.json` `main` field points at the compiled version of this
+ * file (`dist/src/index.js`), which `func start` loads at runtime.
  */
 
-import { DEFAULT_LIBRARY_ID, type Role, type Song } from '@slaylist/shared';
-
-// Compile-time check that the shared types are reachable from /api.
-// This binding is intentionally unused at runtime — see `void` below.
-const _typeCheck: { libraryId: string; role: Role; songShape: Pick<Song, 'id' | 'state'> } = {
-  libraryId: DEFAULT_LIBRARY_ID,
-  role: 'uploader',
-  songShape: { id: 'placeholder', state: 'processing' },
-};
-
-// Silence the "unused" lint while keeping the type-level proof.
-void _typeCheck;
+import './functions/health.js';

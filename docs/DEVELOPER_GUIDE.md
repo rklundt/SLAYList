@@ -41,15 +41,28 @@ A React/TypeScript PWA talks to a light TypeScript API (both hosted on an Azure 
 
 Goal: one command runs frontend + API locally; the transcoder is runnable/testable locally against a local or dev storage account.
 
-After cloning:
+### Prerequisites (one-time setup)
+
+- **Node 22 LTS** (D18). Check: `node --version` → `v22.x`. Use `nvm-windows`/`fnm`/`volta` to manage versions.
+- **pnpm 11+** (D34). Check: `pnpm --version` → `11.x`. Install: `corepack enable && corepack prepare pnpm@latest --activate`.
+- **Azure Functions Core Tools v4** — the `func` binary on PATH. Required to run the API locally. Install: [Microsoft installer](https://learn.microsoft.com/azure/azure-functions/functions-run-local) (Windows MSI) OR `npm install -g azure-functions-core-tools@4`. Check: `func --version` → `4.x`.
+- **Filesystem with symlink support** (D34 — NTFS / ext4 / APFS; exFAT breaks pnpm).
+
+### After cloning
 
 ```
 pnpm install            # installs deps for all workspaces; generates pnpm-lock.yaml on first run
+pnpm dev                # frontend (Vite on :5193) + API (func on :7071), concurrently. Browse http://localhost:5193
 pnpm run typecheck      # tsc --noEmit across all workspaces
-pnpm test               # vitest across workspaces with tests (currently /shared; more in 0.3+)
+pnpm test               # vitest across workspaces with tests
+pnpm build              # production builds (frontend → frontend/dist/, api → api/dist/)
 ```
 
-The one-command local-run for frontend + API arrives in Sprint 0.3.
+### Why this dev pattern, not SWA CLI's `swa start`?
+
+The "SWA-faithful local emulator" is the Static Web Apps CLI (`swa start`). It exists as a devDep here for Sprint 2.2's deploy-pipeline verification, but it is **not** used by `pnpm dev`. Reason: SWA CLI's local-mode does a hardcoded `require('<cwd>/azure-functions-core-tools/lib/main.js')` to start its bundled func runtime, which fails under pnpm's strict node_modules layout (discovered during Sprint 0.3 verification, even with `public-hoist-pattern` and a global `func` install).
+
+The current `pnpm dev` pattern instead runs Vite + func directly via `concurrently`, with Vite's dev-server proxy emulating SWA's `/api/*` routing. This is reliable, matches the production routing shape from the frontend's perspective, and reserves SWA CLI for the load-bearing build verification at Sprint 2.2. If the SWA CLI bug is fixed upstream (or worked around in a way that doesn't compromise D34), `pnpm dev` can pivot back.
 
 ### Filesystem requirements (D34)
 

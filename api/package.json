@@ -3,10 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "dist/src/index.js",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prestart": "node -e \"const fs=require('fs');if(!fs.existsSync('local.settings.json')){fs.copyFileSync('local.settings.json.example','local.settings.json');console.log('Created local.settings.json from .example template')}\"",
+    "start": "pnpm run build && func start"
   },
   "dependencies": {
+    "@azure/functions": "^4.5.0",
     "@slaylist/shared": "workspace:*"
   }
 }
