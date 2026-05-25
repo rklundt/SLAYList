@@ -14,7 +14,7 @@ The **app** is private and login-gated. The **source code** is public, here, und
 
 ## Status
 
-Epic 0 in progress. Sprints 0.1 (repo + branches), 0.2 (monorepo scaffold + shared types), 0.3 (local run) done. See **`.sprints/INDEX.md`** for current state.
+**Epic 0 complete.** Clone the repo, `pnpm install`, `pnpm dev`, browse `http://localhost:5193` — the walking skeleton runs locally end-to-end (frontend + API + storage emulator). Real Azure work starts at Epic 1. See **`.sprints/INDEX.md`** for the full sprint map.
 
 ## Quickstart (local dev)
 
