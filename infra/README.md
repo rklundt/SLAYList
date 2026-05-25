@@ -17,7 +17,7 @@ This folder grows as the Azure resources do. Documented homes for future content
 | `README.md` | ✅ yes | This file |
 | `naming-convention.md` | ✅ yes | Microsoft CAF-aligned naming pattern for every Azure resource type SLAYList uses. Pattern only — no concrete deployed names. |
 | `dev-resources.md.example` | ✅ yes | Template for the gitignored dev-environment notes. Shows what to capture; values are placeholders. |
-| `prod-resources.md.example` | ✅ yes (added at Sprint 9.1) | Same shape as dev, for the prod environment. |
+| `prod-resources.md.example` | ❌ not yet (added at Sprint 9.1) | Same shape as dev, for the prod environment. Created when prod work begins. |
 | `dev-resources.md` | ❌ **gitignored** | Real dev tenant ID, subscription ID, resource group name, App Insights connection string, instrumentation key, useful KQL queries. Populated locally during Sprint 1.1. |
 | `prod-resources.md` | ❌ **gitignored** | Same shape as dev, for prod. Populated locally during Sprint 9.1. |
 

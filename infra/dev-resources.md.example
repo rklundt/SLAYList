@@ -20,7 +20,7 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 | Subscription name | `<your subscription name>` |
 | Subscription ID | `<subscription-guid>` |
 
-**Captured at:** Sprint 1.1, Step 5 of the guide.
+**Captured at:** Sprint 1.1, Step 1 of the guide.
 
 **Used by:** Sprint 2.1 (OIDC federation — these become GitHub repo variables, not secrets).
 
