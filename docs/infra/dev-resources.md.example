@@ -72,7 +72,7 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 | Alert rung 1 | $5 (33%) — early warning ("something changed, investigate") |
 | Alert rung 2 | $12 (80%) — warning |
 | Alert rung 3 | $15 (100%) — action-needed |
-| Notification email | `<your-msa@example.com>` |
+| Notification email | `<your-personal-or-alerts-email@example.com>` — kept here (gitignored), NOT in any committed file. See BACKLOG "Dedicated alerts mailbox" for the future-state improvement (replace personal email with a project-dedicated alias). |
 | Created | Sprint 1.1 |
 
 **Why $5 as the first rung:** family-scale steady-state cost is expected at $0–2/month. Anything above $5/month is already abnormal and worth investigating immediately, not waiting for the 80% rung.
