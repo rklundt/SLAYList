@@ -13,12 +13,14 @@
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "build": "pnpm -r run build",
-    "dev": "concurrently --names \"api,web\" --prefix-colors \"cyan,green\" \"pnpm --filter @slaylist/api start\" \"pnpm --filter @slaylist/frontend dev\""
+    "predev": "pnpm --filter @slaylist/api build",
+    "dev": "concurrently --names \"storage,tsc,api,web\" --prefix-colors \"magenta,yellow,cyan,green\" --kill-others-on-fail \"azurite --silent --location ./.azurite\" \"pnpm --filter @slaylist/api run build:watch\" \"pnpm --filter @slaylist/api start\" \"pnpm --filter @slaylist/frontend dev\""
   },
   "devDependencies": {
     "@azure/static-web-apps-cli": "^2.0.2",
     "@types/node": "^22.10.0",
     "azure-functions-core-tools": "^4.0.0",
+    "azurite": "^3.33.0",
     "concurrently": "^9.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

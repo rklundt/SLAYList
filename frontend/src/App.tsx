@@ -42,9 +42,14 @@ export function App() {
         if (!cancelled) {
           setHealth(body.status === 'ok' ? 'ok' : 'unreachable');
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setHealth('unreachable');
+          // Per D32 + Epic 1+ followup (App Insights): once telemetry is wired,
+          // emit a structured error event here with the failure shape (NOT the
+          // request body — health check has none anyway). For now, console.error
+          // so devtools shows the failure cause during dev verification.
+          console.error('Health check fetch failed', err);
         }
       }
     })();

@@ -6,9 +6,11 @@
   "main": "dist/src/index.js",
   "scripts": {
     "build": "tsc",
+    "build:watch": "tsc --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "prestart": "node -e \"const fs=require('fs');if(!fs.existsSync('local.settings.json')){fs.copyFileSync('local.settings.json.example','local.settings.json');console.log('Created local.settings.json from .example template')}\"",
-    "start": "pnpm run build && func start"
+    "start": "func start"
   },
   "dependencies": {
     "@azure/functions": "^4.5.0",
