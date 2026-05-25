@@ -1,0 +1,15 @@
+{
+  "$schema": "https://aka.ms/azure/static-web-apps-cli/schema",
+  "configurations": {
+    "slaylist-dev": {
+      "appLocation": "frontend",
+      "apiLocation": "api",
+      "outputLocation": "dist",
+      "appBuildCommand": "pnpm --filter @slaylist/frontend build",
+      "apiBuildCommand": "pnpm --filter @slaylist/api build",
+      "appDevserverUrl": "http://localhost:5193",
+      "run": "pnpm --filter @slaylist/frontend dev",
+      "appDevserverTimeout": 60000
+    }
+  }
+}

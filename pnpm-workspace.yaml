@@ -7,6 +7,12 @@ packages:
 # pnpm 11+ moved most settings out of package.json into this file.
 # See: https://pnpm.io/settings
 # `allowBuilds` allow-lists packages whose postinstall scripts may run.
-# esbuild needs to install platform-specific native binaries.
+#   - esbuild: installs platform-specific native binaries for Vitest.
+#   - azure-functions-core-tools: downloads the `func` binary used by SWA CLI
+#     to run the local API runtime (Sprint 0.3 / D34 dev pipeline).
+#   - keytar: native bindings for OS credential storage used by SWA CLI for
+#     Azure auth flows (Sprint 0.3 / Epic 2 deploy auth).
 allowBuilds:
+  azure-functions-core-tools: true
   esbuild: true
+  keytar: true

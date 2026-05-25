@@ -1,0 +1,45 @@
+/* Copyright (c) 2026 Ray Klundt */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/*
+ * Sprint 0.3 — minimal functional CSS only.
+ * Epic 8 owns the real mobile-first UI; this file should NOT grow into a
+ * design pass. The status-color cue (green ok / red unreachable) earns its
+ * place by visibly proving the /api/health round-trip; everything else here
+ * is "legible text" and nothing more.
+ */
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+}
+
+.app {
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.status {
+  font-weight: bold;
+}
+
+.status-loading {
+  color: #555;
+}
+
+.status-ok {
+  color: #1a7f3c;
+}
+
+.status-unreachable {
+  color: #b00020;
+}
+
+.footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ccc;
+  font-size: 0.875rem;
+}
