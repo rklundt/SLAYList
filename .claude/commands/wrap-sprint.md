@@ -6,6 +6,23 @@ description: Five-perspective skeptical review of the sprint's work. Rates findi
 
 Review the work completed in this sprint from five independent, skeptical perspectives. Your job is to FIND PROBLEMS, not to reassure. A review that finds nothing is suspect — look harder. Do not rubber-stamp.
 
+## STOP CHECK — before running the five reviewers
+
+Before any reviewer perspective runs, walk the sprint's acceptance criteria as a checklist. Reviewing half-done work produces noise and false confidence — this check makes sure the work being reviewed is *actually* complete.
+
+1. Open the sprint file (`.sprints/epic-N-<name>/SPRINTS.md` or the individual sprint file under that epic).
+2. List each acceptance bullet from the target sprint.
+3. Mark each ✅ done / ⬜ pending with one-line evidence:
+   - ✅ done: cite the commit hash, file path, or human attestation
+   - ⬜ pending: state precisely what's missing
+4. For **[Human, guided]** sprints (or **[Both]** sprints with a human portion), explicitly require human attestation of the Phase B (manual / portal / human-executed) work. The human's attestation IS the evidence; absence of it = pending. Do not assume Phase B happened because Phase A is committed; the two phases complete independently.
+
+**If any acceptance is pending, STOP.** Do not run the five reviewers below. Tell the human exactly what's left to complete and how to verify it. The five-perspective review evaluates *completed work*; running it on a half-done sprint wastes everyone's time and risks blessing a sprint that isn't actually done.
+
+This check is the matching enforcement for the CLAUDE.md guardrail "Branch pushed ≠ sprint done." It catches the exact silent failure mode where Phase A's commit makes the sprint *look* done while Phase B's acceptance bullets are still pending.
+
+Only after the checklist is fully ✅ does the five-reviewer pass below run.
+
 ## The five reviewers
 
 Run each as a distinct perspective with its own checklist. For each, list concrete findings (file/line or specific behavior), each rated **CRITICAL / MODERATE / LOW**.
