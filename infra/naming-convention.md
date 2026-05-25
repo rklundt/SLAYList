@@ -78,7 +78,7 @@ Beyond names, every Azure resource gets these tags so a future `az resource list
 | `app` | `slaylist` |
 | `env` | `dev` or `prod` |
 | `workload` | `music` |
-| `managed-by` | `manual-1.1` (or `terraform`, `bicep`, etc. when IaC lands) |
+| `managed-by` | `manual` (or `terraform`, `bicep`, etc. when IaC lands). The "which sprint created this" provenance lives in git history of `infra/dev-resources.md` and `docs/VERSIONS.md`, not in the tag — keeps the tag stable and avoids re-tagging every sprint. |
 | `cost-center` | `personal` |
 
 Sprint 1.1's guide includes the tag set on every resource created.

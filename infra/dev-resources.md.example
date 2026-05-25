@@ -40,7 +40,8 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 | Name | `log-music-slaylist-dev-use2` |
 | Resource group | `rg-music-slaylist-dev-use2` |
 | Region | East US 2 |
-| Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.OperationalInsights/workspaces/log-music-slaylist-dev-use2` |
+| Resource ID (ARM) | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.OperationalInsights/workspaces/log-music-slaylist-dev-use2` |
+| Workspace ID (Customer ID) | `<workspace-guid>` — Overview page, "Workspace ID" field. Used only if writing direct to the Log Analytics ingestion API (we don't — App Insights handles ingestion). Nice-to-have. |
 | Retention | 30 days (free tier default; App Insights below overrides at the App Insights level) |
 | Created | Sprint 1.1 |
 
