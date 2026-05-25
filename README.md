@@ -14,11 +14,32 @@ The **app** is private and login-gated. The **source code** is public, here, und
 
 ## Status
 
-Scaffold only. No code yet. **Start at `.sprints/epic-0-foundations/SPRINTS.md`, sprint 0.1.**
+Epic 0 in progress. Sprints 0.1 (repo + branches), 0.2 (monorepo scaffold + shared types), 0.3 (local run) done. See **`.sprints/INDEX.md`** for current state.
 
 ## Quickstart (local dev)
 
-_To be filled in by Epic 0.3 once the scaffold runs locally._
+Prerequisites:
+- **Node 22 LTS** (D18) — `node --version` should report `v22.x`. Use a version manager like `nvm-windows`, `fnm`, or `volta` to switch if needed.
+- **pnpm 11+** (D34) — `pnpm --version` should report `11.x`. Install via `npm install -g pnpm@latest` or `corepack enable && corepack prepare pnpm@latest --activate`.
+- **Azure Functions Core Tools v4** — the `func` binary on PATH. Install via the [installer](https://learn.microsoft.com/azure/azure-functions/functions-run-local) or `npm install -g azure-functions-core-tools@4`. `func --version` should report `4.x`.
+- **Filesystem with symlink support** (D34) — NTFS on Windows, ext4/APFS elsewhere. `pnpm install` fails on exFAT.
+
+Then:
+
+```
+pnpm install
+pnpm dev
+```
+
+This runs the frontend (Vite on `http://localhost:5193`) and the API (func on `http://localhost:7071`) concurrently. Vite proxies `/api/*` to the API, so browse to **`http://localhost:5193`** — you should see the "SLAYList — it works" page with a green `API: ok` round-trip indicator and an AGPL source-link footer.
+
+Other commands:
+
+```
+pnpm test         # vitest across workspaces
+pnpm typecheck    # tsc --noEmit across all workspaces (strict + noUncheckedIndexedAccess)
+pnpm build        # production builds (frontend → dist/, api → dist/)
+```
 
 ## The shape, in one breath
 
