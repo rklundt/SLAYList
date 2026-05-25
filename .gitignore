@@ -36,3 +36,10 @@ obj/
 # Note the leading slash: gitignore patterns without it match at any depth,
 # which would unintentionally ignore scripts/dev.sh too.
 /dev.sh
+# Infra notes — real Azure values (tenant ID, subscription ID, resource names,
+# App Insights connection string, deployment tokens). Per D17 + DEVELOPER_GUIDE
+# "Public-repo hygiene", real Azure resource names + identifiers never land in
+# committed files. The `.example` templates ARE committed; the populated
+# `*-resources.md` files are NOT. Sprint 1.1+ populates these locally.
+docs/infra/dev-resources.md
+docs/infra/prod-resources.md

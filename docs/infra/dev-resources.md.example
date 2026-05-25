@@ -1,0 +1,149 @@
+# Dev environment resources — local notes template
+
+**This is the `.example` template that IS committed.** Copy this to `docs/infra/dev-resources.md` (gitignored) and fill in the real values as Sprint 1.1+ creates each resource.
+
+Per `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene":
+- Real Azure resource names, tenant ID, subscription ID, connection strings, deployment tokens **MUST NOT** land in any committed file.
+- This template uses `<placeholder>` for every real value. Your filled-in `dev-resources.md` is gitignored.
+
+If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevents it, but double-check with `git status` before every commit anyway.
+
+---
+
+## Azure account identity
+
+| Field | Value |
+|---|---|
+| Microsoft account | `<your-msa@example.com>` |
+| Tenant name (display) | `<your tenant display name>` |
+| Tenant ID | `<tenant-guid>` |
+| Subscription name | `<your subscription name>` |
+| Subscription ID | `<subscription-guid>` |
+
+**Captured at:** Sprint 1.1, Step 5 of the guide.
+
+**Used by:** Sprint 2.1 (OIDC federation — these become GitHub repo variables, not secrets).
+
+## Resource group
+
+| Field | Value |
+|---|---|
+| Name | `rg-music-slaylist-dev-use2` |
+| Region | East US 2 (`use2`) |
+| Tags | `app=slaylist env=dev workload=music managed-by=manual-1.1 cost-center=personal` |
+| Created | Sprint 1.1 |
+
+## Log Analytics workspace
+
+| Field | Value |
+|---|---|
+| Name | `log-music-slaylist-dev-use2` |
+| Resource group | `rg-music-slaylist-dev-use2` |
+| Region | East US 2 |
+| Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.OperationalInsights/workspaces/log-music-slaylist-dev-use2` |
+| Retention | 30 days (free tier default; App Insights below overrides at the App Insights level) |
+| Created | Sprint 1.1 |
+
+## Application Insights
+
+| Field | Value |
+|---|---|
+| Name | `appi-music-slaylist-dev-use2` |
+| Resource group | `rg-music-slaylist-dev-use2` |
+| Region | East US 2 |
+| Type | Workspace-based (classic mode deprecated 2024) |
+| Linked Log Analytics workspace | `log-music-slaylist-dev-use2` |
+| Retention | 90 days (free; revisit only for prod against actual need) |
+| **Connection string** | `<full connection string — keep secret>` |
+| **Instrumentation key** | `<guid — keep secret>` |
+| Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.Insights/components/appi-music-slaylist-dev-use2` |
+| Created | Sprint 1.1 |
+
+**Used by:** Sprint 2.1 (stored as GitHub Actions secret `APP_INSIGHTS_CONNECTION_STRING_DEV`), Sprint 2.2 (wired into SWA app settings as `APPLICATIONINSIGHTS_CONNECTION_STRING`).
+
+## Budget alerts
+
+| Field | Value |
+|---|---|
+| Name | `budget-music-slaylist-dev` |
+| Scope | Resource group `rg-music-slaylist-dev-use2` (NOT subscription) |
+| Amount | $15 / month |
+| Reset period | Monthly |
+| Alert rung 1 | $5 (33%) — early warning ("something changed, investigate") |
+| Alert rung 2 | $12 (80%) — warning |
+| Alert rung 3 | $15 (100%) — action-needed |
+| Notification email | `<your-msa@example.com>` |
+| Created | Sprint 1.1 |
+
+**Why $5 as the first rung:** family-scale steady-state cost is expected at $0–2/month. Anything above $5/month is already abnormal and worth investigating immediately, not waiting for the 80% rung.
+
+**Why RG-scoped:** the subscription is shared with other workloads; a subscription-scoped budget would measure the wrong total. RG-scoped tracks only SLAYList dev infra.
+
+**Prod budget:** deferred to Epic 9 (Sprint 9.1) when prod resources exist; an empty-RG budget would be noise. See `docs/BACKLOG.md` "Deferred by design" — prod budget mirror.
+
+## Useful KQL queries
+
+(Saved per `docs/DEVELOPER_GUIDE.md` "Observability" — "save useful KQL queries in `docs/infra` notes so they're not re-derived under pressure.")
+
+### Smoke test: did anything land in the last hour?
+
+```kql
+union *
+| where timestamp > ago(1h)
+| summarize count() by itemType
+```
+
+Expected after Sprint 1.1 Step 6 verification: at least one `traces` or `availabilityResults` row.
+
+### Find recent API exceptions (Epic 4+ when API code exists)
+
+```kql
+exceptions
+| where timestamp > ago(24h)
+| project timestamp, type, outerMessage, operation_Name, cloud_RoleName
+| order by timestamp desc
+```
+
+### Find slow API requests (Epic 4+)
+
+```kql
+requests
+| where timestamp > ago(24h)
+| where duration > 1000
+| project timestamp, name, duration, resultCode, operation_Id
+| order by duration desc
+```
+
+### Find queue dead-letters (Epic 7+)
+
+```kql
+traces
+| where timestamp > ago(7d)
+| where message contains "dead-letter" or customDimensions.poison_queue == "true"
+| project timestamp, message, customDimensions
+| order by timestamp desc
+```
+
+(More queries added as later sprints create real failure paths to query.)
+
+## Resource cleanup procedure (if ever needed)
+
+To tear down the entire dev environment (e.g., subscription move per the documented escape hatch):
+
+1. Delete the resource group `rg-music-slaylist-dev-use2` — this deletes every resource inside it in one operation.
+2. **DO NOT** delete the resource group while you still need any of the data in it. Storage account soft-delete + versioning (Sprint 1.3) does NOT survive RG deletion.
+3. After RG deletion, manually clean up: any GitHub Actions secrets (`gh secret list`), the OIDC federated credentials on the Entra app registration (Sprint 2.1+), and any DNS records pointing at SWA URLs (Epic 9+).
+
+## Subscription / tenant move escape hatch
+
+If SLAYList ever moves to a dedicated subscription (per the documented "if we take off" trigger), the work is:
+
+1. Create the new sub.
+2. Move the resource group via `az resource move` (most resource types support move; Container App may need recreation — verify in Microsoft docs at the time).
+3. Re-issue OIDC federated credentials (Sprint 2.1 created them keyed to repo+branch; the sub-ID embedded in the federation needs updating).
+4. Update GitHub repo variables (sub ID, tenant ID if also changed).
+5. Re-issue App Insights connection string — its resource ID embeds the sub ID, so it changes.
+6. Update SWA app settings to use the new connection string.
+7. Verify next deploy succeeds.
+
+Estimated time: ~30 focused minutes.
