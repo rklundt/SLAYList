@@ -19,8 +19,9 @@ Thumbs.db
 # logs
 *.log
 npm-debug.log*
-# azure / func / swa local state
+# azure / func / swa / azurite local state
 .azure/
+.azurite/
 .swa/
 swa-db-connections/
 bin/
@@ -29,3 +30,9 @@ obj/
 # .claude/commands/ and .claude/settings.json ARE committed (repo-shared);
 # .claude/settings.local.json holds per-machine permission grants — NEVER commit.
 .claude/settings.local.json
+# Local dev kickoff: scripts/dev.sh is tracked (portable, machine-agnostic);
+# /dev.sh at repo root is gitignored as the per-machine override slot if you
+# want different ports, extra setup steps, etc. without committing them.
+# Note the leading slash: gitignore patterns without it match at any depth,
+# which would unintentionally ignore scripts/dev.sh too.
+/dev.sh
