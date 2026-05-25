@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Ray Klundt
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -43,5 +44,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+  },
+  test: {
+    // happy-dom over jsdom: faster startup, smaller deps, sufficient for the
+    // skeleton we're testing. Reconsider if Sprint 8's real UI needs jsdom
+    // features happy-dom lacks.
+    environment: 'happy-dom',
+    globals: false,
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 });

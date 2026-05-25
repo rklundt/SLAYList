@@ -31,7 +31,20 @@ pnpm install
 pnpm dev
 ```
 
-This runs the frontend (Vite on `http://localhost:5193`) and the API (func on `http://localhost:7071`) concurrently. Vite proxies `/api/*` to the API, so browse to **`http://localhost:5193`** — you should see the "SLAYList — it works" page with a green `API: ok` round-trip indicator and an AGPL source-link footer.
+`pnpm dev` runs **four** processes concurrently via `concurrently` (with a `predev` hook that runs an initial API build first):
+
+| Process | Port(s) | What it does |
+|---|---|---|
+| **storage** (Azurite) | 10000 / 10001 / 10002 | Azure Storage emulator — blob / queue / table. Required by the Azure Functions runtime even for HTTP-only apps; satisfies `func`'s `AzureWebJobsStorage` health check. Runs silently. |
+| **tsc** (TypeScript watch) | — | Recompiles API source (`api/src/**`) to `api/dist/**` on save. Gives the API a save-and-reload loop comparable to Vite's HMR. |
+| **api** (`func`) | 7071 | Azure Functions runtime hosting the `/api/health` endpoint (and future endpoints from Epic 4+). Reloads when the watcher updates `dist/`. |
+| **web** (Vite) | 5193 | Frontend dev server with HMR. Proxies `/api/*` to `localhost:7071` so the frontend can call `/api/health` as a same-origin URL — matching deployed SWA routing. |
+
+Browse to **`http://localhost:5193`** — you should see the "SLAYList — it works" page with a green `API: ok` round-trip indicator and an AGPL source-link footer.
+
+Ctrl-C in the terminal stops all four. Azurite's local data lives in `.azurite/` (gitignored).
+
+**Convenience kickoff script:** `scripts/dev.sh` (tracked, portable) checks the five dev ports for orphaned listeners from prior crashed runs, force-kills them, verifies prereq versions, then runs `pnpm dev`. Run it as `./scripts/dev.sh` from the repo root. A `dev.sh` at the repo root is gitignored if you want to drop a machine-specific override there.
 
 Other commands:
 

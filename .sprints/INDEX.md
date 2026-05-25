@@ -33,7 +33,7 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 ### Epic 0 — Foundations (repo, local scaffold, walking skeleton)
 - ✅ 0.1 Repo + branches + protection — public repo at github.com/rklundt/SLAYList; CodeQL retry deferred to 0.2
 - ✅ 0.2 Monorepo scaffold + shared types skeleton — pnpm 11.3.0 (D34 supersedes D18's npm pin); CodeQL configured post-merge via PATCH (D31 baseline 4/4)
-- ⬜ 0.3 Local run (frontend + API "hello") with one command
+- ✅ 0.3 Local run (frontend + API "hello") with one command — 4-process `pnpm dev` stack (Azurite + tsc-watch + func + Vite); D35 (Azurite); 12 tests passing
 - ⬜ 0.4 Foundational docs + verify slash-commands wired
 - **Exit:** clone, one command, see the app locally. No Azure.
 

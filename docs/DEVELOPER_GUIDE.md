@@ -52,17 +52,32 @@ Goal: one command runs frontend + API locally; the transcoder is runnable/testab
 
 ```
 pnpm install            # installs deps for all workspaces; generates pnpm-lock.yaml on first run
-pnpm dev                # frontend (Vite on :5193) + API (func on :7071), concurrently. Browse http://localhost:5193
+pnpm dev                # three-process dev stack (storage + api + web), concurrently. Browse http://localhost:5193
 pnpm run typecheck      # tsc --noEmit across all workspaces
 pnpm test               # vitest across workspaces with tests
 pnpm build              # production builds (frontend → frontend/dist/, api → api/dist/)
 ```
 
+**Kickoff helper:** `scripts/dev.sh` is the tracked, portable, machine-agnostic kickoff script. It resolves the project root from its own location (so it works wherever you cloned the repo), checks the five dev ports for orphaned listeners, force-kills them, verifies the prereq versions, then runs `pnpm dev`. Run it as `./scripts/dev.sh` from the repo root, or with its full path from anywhere. If you want machine-specific tweaks (different ports, extra setup steps, etc.) without committing them, drop a `dev.sh` at the repo root — that exact path is gitignored.
+
+### The dev stack (`pnpm dev`)
+
+**Four** processes run concurrently via [`concurrently`](https://www.npmjs.com/package/concurrently) with `--kill-others-on-fail` (if one crashes, the others stop too, so failures surface immediately). A `predev` hook runs an initial `pnpm --filter @slaylist/api build` first so `func` has a `dist/` to load before the watcher takes over.
+
+| Process | Port(s) | Purpose |
+|---|---|---|
+| **storage** ([Azurite](https://github.com/Azure/Azurite)) | 10000 / 10001 / 10002 | Microsoft's official Azure Storage emulator — blob / queue / table. Runs silent (`--silent --location ./.azurite`). Required by `func`'s `AzureWebJobsStorage` health check even for HTTP-only Functions; without it the func host eventually exits as "unhealthy" and takes the rest of the stack down (see D35 for the trap). Will be the local stand-in for the real Azure Storage account when Epic 4+ adds blob/table code. |
+| **tsc** (TypeScript compiler in watch mode) | — | `tsc --watch --preserveWatchOutput` running in the api workspace. Recompiles `api/src/**` to `api/dist/**` on every save so the func host picks up handler edits without a manual restart. Frontend gets HMR via Vite; this gives the API a comparable iteration loop. |
+| **api** (`func`) | 7071 | Azure Functions runtime hosting `/api/health` (and future endpoints). Loads compiled JS from `api/dist/`. Reads `api/local.settings.json` (auto-created from `api/local.settings.json.example` by the prestart hook on first run; `local.settings.json` is gitignored). |
+| **web** (Vite) | 5193 | Frontend dev server with HMR. Proxies `/api/*` to `localhost:7071`, so the frontend code calls `/api/health` as if both halves were one origin — matching deployed SWA routing. Non-default port (5193 instead of Vite's 5173) to avoid conflicts with other local apps. |
+
+Browse to `http://localhost:5193` once `[web]` reports `VITE ... ready`. Ctrl-C in the terminal stops all three. Azurite's local data lives in `.azurite/` (gitignored — safe to delete to reset emulator state).
+
 ### Why this dev pattern, not SWA CLI's `swa start`?
 
 The "SWA-faithful local emulator" is the Static Web Apps CLI (`swa start`). It exists as a devDep here for Sprint 2.2's deploy-pipeline verification, but it is **not** used by `pnpm dev`. Reason: SWA CLI's local-mode does a hardcoded `require('<cwd>/azure-functions-core-tools/lib/main.js')` to start its bundled func runtime, which fails under pnpm's strict node_modules layout (discovered during Sprint 0.3 verification, even with `public-hoist-pattern` and a global `func` install).
 
-The current `pnpm dev` pattern instead runs Vite + func directly via `concurrently`, with Vite's dev-server proxy emulating SWA's `/api/*` routing. This is reliable, matches the production routing shape from the frontend's perspective, and reserves SWA CLI for the load-bearing build verification at Sprint 2.2. If the SWA CLI bug is fixed upstream (or worked around in a way that doesn't compromise D34), `pnpm dev` can pivot back.
+The current `pnpm dev` pattern instead runs Azurite + tsc-watch + func + Vite directly via `concurrently`, with Vite's dev-server proxy emulating SWA's `/api/*` routing. This is reliable, matches the production routing shape from the frontend's perspective, and reserves SWA CLI for the load-bearing build verification at Sprint 2.2. If the SWA CLI bug is fixed upstream (or worked around in a way that doesn't compromise D34), `pnpm dev` can pivot back.
 
 ### Filesystem requirements (D34)
 
