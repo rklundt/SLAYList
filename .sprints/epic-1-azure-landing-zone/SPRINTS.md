@@ -1,6 +1,6 @@
 # Epic 1 — Azure Landing Zone (dev resources)
 
-**Goal:** Create the dev-side Azure resources, by hand the first time so the owner understands them. Claude Code writes a step-by-step guide before each human task.
+**Goal:** Create the dev-side Azure resources, by hand the first time so the owner understands them. A step-by-step guide is written before each human task.
 
 **Exit criterion:** dev resources exist in the portal. Nothing wired together yet.
 
@@ -16,7 +16,7 @@ Acceptance: dev resource group exists; naming convention in `infra/` notes (cano
 
 ## Sprint 1.2 — Dev Static Web App  **[Human, guided]**
 - As the owner, I want a dev Static Web App **on the Free tier (D26)** so the skeleton has a deploy target with no per-environment cost.
-Acceptance: dev SWA exists on **Free tier**; deployment token captured for Epic 2 (stored as a GitHub secret, never in repo). Note for future-you: Standard tier unlocks custom domains, IP allow-lists, and bring-your-own functions; per D26 we are deliberately on Free for now, and the prod-custom-domain decision is Epic 9's.
+Acceptance: dev SWA exists on **Free tier**; deployment token captured for Epic 2 (stored in gitignored `infra/dev-resources.md` as a **D37** break-glass fallback only; **NOT** in GitHub Secrets, **NOT** in repo — Sprint 2.2 deploys via OIDC-authenticated `az staticwebapp deploy` per D37, not via the token). Note for future-you: Standard tier unlocks custom domains, IP allow-lists, and bring-your-own functions; per D26 we are deliberately on Free for now, and the prod-custom-domain decision is Epic 9's.
 
 ## Sprint 1.3 — Dev storage account (blobs + table)  **[Human, guided]**
 - As the owner, I want a dev storage account holding three blob containers (`raw-uploads`, `finished`, `table-backups`) and the metadata table.

@@ -1,6 +1,6 @@
 # CLAUDE.md — Read this first, every session
 
-This file is the entry point for any AI or human developer working on this project. If you are Claude Code starting a session, read this file, then `docs/ARCHITECTURE.md`, then the current sprint file, before writing anything.
+This file is the entry point for any AI or human developer working on this project. If you are an agent starting a session, read this file, then `docs/ARCHITECTURE.md`, then the current sprint file, before writing anything.
 
 ## The doc map (read these to orient)
 
@@ -47,7 +47,7 @@ The original goal, in the owner's words: *let my kids have fun making songs and 
 - Work is grouped into **Epics** (like phases), each in `.sprints/epic-N-name/`.
 - Each epic contains **Sprints**, each a markdown file with user stories and acceptance criteria.
 - `.sprints/INDEX.md` is the high-level map of all epics/sprints and their status. It is kept current by `/close-sprint`. Use it to reason about downstream impact of a change.
-- Three slash commands drive the loop: `/start-sprint`, `/wrap-sprint`, `/close-sprint`. See `.claude/commands/` (Claude Code's expected location — moved from `.commands/` in pre-Epic-0 alignment so the commands are actually loaded by the CLI).
+- Three slash commands drive the loop: `/start-sprint`, `/wrap-sprint`, `/close-sprint`. See `.claude/commands/` (the agent's expected location — moved from `.commands/` in pre-Epic-0 alignment so the commands are actually loaded by the CLI).
 
 ## The development loop (how a sprint goes)
 
@@ -78,7 +78,7 @@ The original goal, in the owner's words: *let my kids have fun making songs and 
 - **Secrets never live in code or in the repo.** They live in GitHub Actions secrets and Azure configuration. **For Azure deploy auth specifically, use OIDC federation (D30)** — no long-lived service-principal client secret stored in GitHub Secrets. Runtime app→storage auth follows D25's split posture (connection string for SWA managed-functions API; Managed Identity for the Container App).
 - **No PII in logs (D32).** Log `ownerOid` (opaque), NEVER `ownerDisplayName` (Entra `preferred_username` — email/handle, PII per D21). Log `songId`, NEVER `title` (kids put real names in song titles). For the transcoder specifically: do not let ffmpeg's stderr — which embeds the input filename — flow unsanitized to Application Insights; use songId-based local filenames during transcode OR substitute filename→songId in captured stderr before emitting. App Insights data is indexed, queryable, and hard to selectively remove — the rule must hold *before* the first log line. `/wrap-sprint` InfoSec verifies.
 - **Raw uploads are the canonical archive — never delete them (D28).** The `raw-uploads` blob area holds the kids' actual creations; transcoded copies are derivative and can be regenerated, originals cannot. No lifecycle rule, cleanup job, or "since song is `ready`, the raw is unneeded" pruner ever deletes from `raw-uploads`. Tier-transition lifecycle rules (Hot → Cool → Archive) are fine; deletion-class rules are forbidden.
-- **The human merges. Claude Code prepares merges.** Never auto-resolve merge conflicts.
+- **The human merges. The agent prepares merges.** Never auto-resolve merge conflicts.
 - **Branch pushed ≠ sprint done. /wrap-sprint cannot begin until every acceptance criterion is confirmed complete.** Before recommending /wrap-sprint (or any next-step that assumes the sprint is finished), restate each acceptance bullet from the sprint file as ✅ done / ⬜ pending with one-line evidence (commit hash, file path, or human attestation). If any bullet is pending — including human-executed ones for `[Human, guided]` sprints — STOP and tell the human what's left. Do not advance. This rule exists because the failure mode is silent: a sprint branch with Phase A work committed *looks* like a finished sprint, and the conversation can drift to /wrap-sprint with Phase B's human-executed acceptance bullets still pending and unverified. The restate-as-checklist discipline makes that impossible to miss.
 - **Public-repo hygiene applies at write time, not just /wrap-sprint review.** The rules in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene" (no secrets, no real personal email addresses, no real Azure resource identifiers beyond the generic project prefix, no GUIDs / connection strings / deployment tokens, no family-identifying detail) are **write-time** constraints. Before writing any file that would include such a value, use a placeholder (`<your-email@example.com>`, `<connection-string>`, etc.) and capture the real value in the gitignored local notes (`docs/infra/dev-resources.md`, etc.). /wrap-sprint InfoSec is the backstop, not the primary defense — by the time it runs, a leak is already in `git log` on a public repo, which is forever.
 

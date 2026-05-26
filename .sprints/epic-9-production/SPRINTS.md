@@ -17,7 +17,7 @@ Acceptance: prod resource group, storage account (blobs+table, soft-delete+versi
 
 **Note on the prod budget (carried forward from Sprint 1.1):** Sprint 1.1 created a *dev* RG-scoped budget at $5/$12/$15 on `rg-music-slaylist-dev-use2` and explicitly deferred the matching prod budget to this sprint. **Mirror the same three-rung pattern** (early warning / 80% / 100%), scoped to `rg-music-slaylist-prod-use2`, with notification to the owner email. **Recalibrate the dollar amounts** against prod's actual expected baseline — prod has real traffic, real storage growth (D28 originals kept indefinitely), real Container App execution time, and (if SWA Standard is chosen) ~$9/mo of SWA cost. Pick deliberately; don't copy $15 verbatim. Capture the chosen numbers + the reasoning in `infra/prod-resources.md` (gitignored) and reference in this sprint's close-out.
 
-## Sprint 9.2 — Extend pipeline: main → prod  **[Claude Code]**
+## Sprint 9.2 — Extend pipeline: main → prod  **[Agent]**
 - As the owner, I want `main` to deploy to prod while `develop` keeps deploying to dev.
 Acceptance: workflow deploys prod on `main`; prod secrets/config separate from dev; human-gated merge enforced; **the prod-bound `staticwebapp.config.json` already contains the custom-Entra-provider auth gate (D22) — the first prod deploy is never anonymous-reachable, never gated by the pre-configured AAD provider.**
 

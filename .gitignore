@@ -26,7 +26,7 @@ npm-debug.log*
 swa-db-connections/
 bin/
 obj/
-# Claude Code per-user state (D17 hygiene + Sprint 0.1 acceptance)
+# Per-user agent/tool state (D17 hygiene + Sprint 0.1 acceptance)
 # .claude/commands/ and .claude/settings.json ARE committed (repo-shared);
 # .claude/settings.local.json holds per-machine permission grants — NEVER commit.
 .claude/settings.local.json

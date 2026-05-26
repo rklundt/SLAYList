@@ -40,7 +40,7 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 
 ### Epic 1 — Azure landing zone (dev resources)
 - ✅ 1.1 Resource group + naming + budget alert ($15/mo) + Application Insights (D24) — dev only; prod mirror at Sprint 9.1. D36 (public network access stays enabled) recorded.
-- ⬜ 1.2 Dev Static Web App (Free tier per D26)
+- ✅ 1.2 Dev Static Web App (Free tier per D26) — `swa-music-slaylist-dev-use2`, empty deploy target (Deployment source = `Other`, D22 safeguard verified); D37 (OIDC-primary deploy auth + break-glass token) added
 - ⬜ 1.3 Dev storage account (blobs + table) — captures connection string for SWA API (D25)
 - ⬜ 1.4 Dev Container App environment — with Managed Identity + storage RBAC (D25)
 - ⬜ 1.5 Dev Event Grid + queue
