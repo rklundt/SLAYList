@@ -94,7 +94,7 @@ Never in code, never committed. Local dev uses untracked local config; CI uses G
 - Container App transcoder: Managed Identity + RBAC (Storage Blob Data Contributor + Storage Table Data Contributor).
 
 **Rotation policy:**
-- The storage account connection string (D25): rotate annually or on suspicion. Procedure: regenerate the secondary key in the Azure portal → update both the SWA app setting and the GitHub Actions secret → verify next deploy → regenerate the primary key → update both again. Documented as a `docs/infra` runbook before Epic 9.
+- The storage account connection string (D25): rotate annually or on suspicion. Procedure: regenerate the secondary key in the Azure portal → update both the SWA app setting and the GitHub Actions secret → verify next deploy → regenerate the primary key → update both again. Documented as a `infra/` runbook before Epic 9.
 - The SWA deployment token: rotate annually or on suspicion. Same swap-then-verify procedure.
 - The Application Insights connection string (D24): rotation only on suspicion (low blast radius — it grants telemetry-write only).
 - OIDC federation: nothing to rotate. That's the point.
@@ -118,7 +118,7 @@ This repository is public from its first commit (D17), AGPL-3.0-or-later. The *a
 What must NOT land in any committed file:
 
 - Secrets, tokens, connection strings, SAS URLs, Entra client secrets, storage keys.
-- **Real Azure resource names** — storage account names, Container App names, Static Web App names, resource group names. Use placeholders in docs (`<storage-account>`, `<resource-group>`) and read real values from environment variables / GitHub secrets at runtime. Real names land in Azure config and CI secrets only.
+- **Real Azure resource identifiers beyond the generic project prefix.** The pattern-derived names that fall straight out of `infra/naming-convention.md` + the public app name + the public env/region codes (e.g. `rg-music-slaylist-dev-use2`, `log-music-slaylist-dev-use2`, `appi-music-slaylist-dev-use2`) ARE acceptable in committed files — they leak nothing a reader couldn't reconstruct from the naming convention itself, they're load-bearing for the portal guides being followable, and the storage-account name (`stmusicslaylistdevuse2`) is the only globally-unique one and is still derivable. What is NOT acceptable in committed files: the **GUID-bearing identifiers** (tenant ID, subscription ID, Application Insights instrumentation key, full resource IDs of the form `/subscriptions/<guid>/...`), connection strings, deployment tokens, and SAS URLs. Those live in your gitignored `infra/dev-resources.md` + GitHub Actions secrets + Azure app settings only. The Sprint 1.1 guide's Step 8 grep check codifies the boundary: pattern-derived names are whitelisted in `infra/` and the sprint guide, but real GUIDs and connection-string fragments anywhere in `git grep` are a violation.
 - **Family-identifying detail** — kid names, real ages, the family's address or location, school names, neighborhood. Code and tests refer to generic "kid 1", "uploader", "listener", etc.
 - Real email addresses other than the maintainer's copyright line. Use `you@example.com` / `family@example.com` in examples.
 - Real `ownerDisplayName` values (Entra `preferred_username`, typically an email/handle — PII). Use fake names like `"Alice"`, `"Test Uploader"`, or `"user@example.com"` in fixtures and tests. For `ownerOid` use any opaque placeholder (e.g., `"00000000-0000-0000-0000-000000000001"`).
@@ -151,7 +151,7 @@ CI gate is **soft** during Epics 0–3 (scaffolding) — tests run on every push
 
 ## Observability (D24)
 
-**Application Insights** is the single failure-observability sink, one instance per environment (dev created in Sprint 1.1, prod in Sprint 9.1). SWA managed functions, the Container App transcoder, and Storage diagnostics all feed into it. When something fails — a transcode, a queue dead-letter, a deploy, an API 500 — App Insights is where you look. Save useful KQL queries in `docs/infra` notes so they're not re-derived under pressure.
+**Application Insights** is the single failure-observability sink, one instance per environment (dev created in Sprint 1.1, prod in Sprint 9.1). SWA managed functions, the Container App transcoder, and Storage diagnostics all feed into it. When something fails — a transcode, a queue dead-letter, a deploy, an API 500 — App Insights is where you look. Save useful KQL queries in `infra/` notes so they're not re-derived under pressure.
 
 The budget alert (Sprint 1.1 / 9.1) is **cost** observability — a separate concern from failure observability. Don't conflate.
 

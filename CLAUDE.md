@@ -2,6 +2,34 @@
 
 This file is the entry point for any AI or human developer working on this project. If you are Claude Code starting a session, read this file, then `docs/ARCHITECTURE.md`, then the current sprint file, before writing anything.
 
+## The doc map (read these to orient)
+
+Active during every session — read in this order on session start:
+
+- **`CLAUDE.md`** (this file) — guardrails + entry point
+- **`docs/ARCHITECTURE.md`** — the settled design (the diagram + component reasoning)
+- **`docs/DECISIONS.md`** — D1–DN, why everything is the way it is, what alternatives were rejected (supersede-in-place pattern; never silently rewritten)
+- **`docs/DEVELOPER_GUIDE.md`** — practical "how to work on it" (public-repo hygiene rules, Node version policy, logging discipline, storage auth posture, filesystem requirements)
+- **`docs/VERSIONS.md`** — pinned versions, dated runtime-verification trail (the place to check before bumping Node/deps/runtime, and to record new pins)
+- **`docs/BACKLOG.md`** — "Deferred by design," "Open questions to resolve at the right epic," "Emergent" — consult before assuming a problem is novel
+- **`.sprints/INDEX.md`** — epic/sprint map + status (✅/🟡/⬜); the dependency-shape diagram is here
+
+When relevant to the current task:
+
+- **`.sprints/epic-N-<name>/SPRINTS.md`** — the current epic's sprint file with user stories + acceptance criteria
+- **`.claude/commands/{start-sprint,wrap-sprint,close-sprint}.md`** — the slash-command bodies (contain the STOP CHECK for `/wrap-sprint` and the Phase A/B split for `[Human, guided]` sprints)
+- **`infra/`** — canonical home for naming convention (`naming-convention.md`), gitignored real-values notes (`dev-resources.md`, `prod-resources.md`), and future restore-procedure runbooks. NOT `docs/infra/` — the canonical location is at repo root per Sprint 0.2 / `docs/DEVELOPER_GUIDE.md` repo layout
+- **`docs/guides/<sprint>-*.md`** — sprint-specific human walkthroughs (only when a `[Human, guided]` sprint needs portal steps)
+
+Public-repo meta (rarely change but live during the project):
+
+- **`LICENSE`** — AGPL-3.0-or-later (FSF verbatim text)
+- **`CONTRIBUTING.md`** — DCO + relicensing grant; sign-off mechanics (`git commit -s`)
+- **`SECURITY.md`** — private vulnerability reporting + explanation of the residual dev-only Dependabot alerts so a casual repo browser doesn't read "19 open alerts" as neglect
+- **`README.md`** — newcomer quickstart (Node version, `pnpm install`, `pnpm dev`); audience overlap with this file is small
+
+If a path above doesn't exist yet, it's because the relevant sprint hasn't created it — don't assume it should already exist.
+
 ## What this project is
 
 A private, login-gated web app where a family's kids upload songs they made (with AI tools like Suno) and play them back on their phones, tablets, and laptops. It is **not** a commercial product, not for public sharing, not for sale. Think "private family music library that happens to live on the internet."
@@ -51,6 +79,8 @@ The original goal, in the owner's words: *let my kids have fun making songs and 
 - **No PII in logs (D32).** Log `ownerOid` (opaque), NEVER `ownerDisplayName` (Entra `preferred_username` — email/handle, PII per D21). Log `songId`, NEVER `title` (kids put real names in song titles). For the transcoder specifically: do not let ffmpeg's stderr — which embeds the input filename — flow unsanitized to Application Insights; use songId-based local filenames during transcode OR substitute filename→songId in captured stderr before emitting. App Insights data is indexed, queryable, and hard to selectively remove — the rule must hold *before* the first log line. `/wrap-sprint` InfoSec verifies.
 - **Raw uploads are the canonical archive — never delete them (D28).** The `raw-uploads` blob area holds the kids' actual creations; transcoded copies are derivative and can be regenerated, originals cannot. No lifecycle rule, cleanup job, or "since song is `ready`, the raw is unneeded" pruner ever deletes from `raw-uploads`. Tier-transition lifecycle rules (Hot → Cool → Archive) are fine; deletion-class rules are forbidden.
 - **The human merges. Claude Code prepares merges.** Never auto-resolve merge conflicts.
+- **Branch pushed ≠ sprint done. /wrap-sprint cannot begin until every acceptance criterion is confirmed complete.** Before recommending /wrap-sprint (or any next-step that assumes the sprint is finished), restate each acceptance bullet from the sprint file as ✅ done / ⬜ pending with one-line evidence (commit hash, file path, or human attestation). If any bullet is pending — including human-executed ones for `[Human, guided]` sprints — STOP and tell the human what's left. Do not advance. This rule exists because the failure mode is silent: a sprint branch with Phase A work committed *looks* like a finished sprint, and the conversation can drift to /wrap-sprint with Phase B's human-executed acceptance bullets still pending and unverified. The restate-as-checklist discipline makes that impossible to miss.
+- **Public-repo hygiene applies at write time, not just /wrap-sprint review.** The rules in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene" (no secrets, no real personal email addresses, no real Azure resource identifiers beyond the generic project prefix, no GUIDs / connection strings / deployment tokens, no family-identifying detail) are **write-time** constraints. Before writing any file that would include such a value, use a placeholder (`<your-email@example.com>`, `<connection-string>`, etc.) and capture the real value in the gitignored local notes (`docs/infra/dev-resources.md`, etc.). /wrap-sprint InfoSec is the backstop, not the primary defense — by the time it runs, a leak is already in `git log` on a public repo, which is forever.
 
 ## Tech stack (see ARCHITECTURE.md for the why)
 
