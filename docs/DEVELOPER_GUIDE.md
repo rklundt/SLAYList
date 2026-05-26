@@ -95,7 +95,7 @@ Never in code, never committed. Local dev uses untracked local config; CI uses G
 
 **Rotation policy:**
 - The storage account connection string (D25): rotate annually or on suspicion. Procedure: regenerate the secondary key in the Azure portal → update both the SWA app setting and the GitHub Actions secret → verify next deploy → regenerate the primary key → update both again. Documented as a `infra/` runbook before Epic 9.
-- The SWA deployment token: rotate annually or on suspicion. Same swap-then-verify procedure.
+- The SWA deployment token (**break-glass fallback only, per D37** — NOT used by CI, NOT stored in GitHub Secrets, NOT in any SWA app setting): rotate annually or on suspicion. Procedure differs from the connection-string flow above because there's no CI propagation: SWA → Manage deployment token → **Reset** → copy the new value → update the `Deployment token (break-glass fallback)` row in `infra/dev-resources.md` Static Web App section. That's it — no app setting update, no GitHub secret update, no deploy verification needed (the token isn't on any deploy path until an operator uses it manually).
 - The Application Insights connection string (D24): rotation only on suspicion (low blast radius — it grants telemetry-write only).
 - OIDC federation: nothing to rotate. That's the point.
 
