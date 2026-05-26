@@ -12,7 +12,7 @@
 - As the owner, I want a dev resource group and a documented naming convention so resources are findable and consistently named.
 - As the owner, I want a **budget alert at $15/month** so an unexpected cost emails me. (Free insurance — generous enough that a normal month never false-alarms, low enough that anything genuinely runaway trips it.)
 - As the owner, I want an **Application Insights instance for dev (D24)** so failure observability exists from day one — before any of Epic 6/7's transcode/queue logic lands, so it can never be debugged blind. App Insights is the single failure sink fed by SWA managed functions, the Container App transcoder, and Storage diagnostics.
-Acceptance: dev resource group exists; naming convention in `docs/infra` notes; budget + alert configured at **$15/month**; **dev Application Insights instance exists and its connection string / instrumentation key is captured for Epic 2's deploy config (stored as a GitHub Actions secret, not in repo)**.
+Acceptance: dev resource group exists; naming convention in `infra/` notes (canonical location per Sprint 0.2's repo layout — `infra/`, NOT `docs/infra/`); budget + alert configured at **$15/month**; **dev Application Insights instance exists and its connection string / instrumentation key is captured for Epic 2's deploy config (stored as a GitHub Actions secret, not in repo)**.
 
 ## Sprint 1.2 — Dev Static Web App  **[Human, guided]**
 - As the owner, I want a dev Static Web App **on the Free tier (D26)** so the skeleton has a deploy target with no per-environment cost.

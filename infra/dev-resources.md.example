@@ -16,6 +16,7 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 |---|---|
 | Microsoft account | `<your-msa@example.com>` |
 | Tenant name (display) | `<your tenant display name>` |
+| Tenant domain | `<your-tenant-name.onmicrosoft.com>` — visible on the Entra ID Overview page. Useful for Sprint 3.1's Entra app registration. |
 | Tenant ID | `<tenant-guid>` |
 | Subscription name | `<your subscription name>` |
 | Subscription ID | `<subscription-guid>` |
@@ -57,7 +58,9 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 | Retention | 90 days (free; revisit only for prod against actual need) |
 | **Connection string** | `<full connection string — keep secret>` |
 | **Instrumentation key** | `<guid — keep secret>` |
+| Application ID (from conn string) | `<guid>` — extract from the `ApplicationId=` part of the connection string. Used for cross-resource KQL queries that target this AI by app id rather than by name. |
 | Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.Insights/components/appi-music-slaylist-dev-use2` |
+| Ingestion region | `<region-stamp>` — visible in the `IngestionEndpoint=` host portion (e.g. `eastus2-3`). One of Azure Monitor's regional ingestion sub-stamps. |
 | Created | Sprint 1.1 |
 
 **Used by:** Sprint 2.1 (stored as GitHub Actions secret `APP_INSIGHTS_CONNECTION_STRING_DEV`), Sprint 2.2 (wired into SWA app settings as `APPLICATIONINSIGHTS_CONNECTION_STRING`).
