@@ -58,6 +58,12 @@ A private, login-gated family music library. Kids upload songs they made, play t
 - **Event Grid + queue**: blob storage cannot call compute directly; it emits events. The queue adds retry-on-failure and is the scale-from-zero trigger for the Container App. Storage Queue to start (Service Bus is the heavier upgrade if ever outgrown). **Note:** Storage Queue has no native dead-letter primitive — the "retry + dead-letter → `failed`" behavior in Epic 7 is implemented in the transcoder (max-dequeue-count + a separate poison queue + explicit move logic), not configured on the queue. Service Bus's native DLQ is the concrete upgrade trigger if hand-rolled DLQ becomes painful. See **D6** for the full reasoning.
 - **Entra ID**: no local passwords to hold or get wrong. Roles ride in the token.
 
+## Observability
+
+**Application Insights** is the single failure-observability sink per environment (D24). Workspace-based — backed by a Log Analytics workspace in the same RG, where the telemetry data physically lives. Fed by SWA managed functions, the Container App transcoder, and Storage diagnostics; one place to look when something fails. Created in Sprint 1.1 (dev) and Sprint 9.1 (prod). Public network access on both ingestion and query stays enabled per **D36** — the connection-string secret (D25) + Azure RBAC + D32 PII discipline + LAW retention auto-expiry are what protects the sink, not the network path. Private Endpoints are a documented future option once the bring-your-own-functions migration (BACKLOG) unlocks Managed-Identity-everywhere.
+
+**Cost observability is a separate concern.** A small RG-scoped budget alert (Sprint 1.1: $15/mo dev at $5 / $12 / $15 rungs; prod TBD at Sprint 9.1) watches spend independently. The two answer different questions — "what failed?" vs "what cost?" — and have separate notification paths; don't conflate.
+
 ## Dev / Prod separation
 
 - **Data stores: physically separate** per environment (separate storage accounts → separate blobs AND tables; separate queues; separate Container Apps). Reason: blast radius. Dev mistakes must never reach prod data.
