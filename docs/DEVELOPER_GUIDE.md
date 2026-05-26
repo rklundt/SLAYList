@@ -132,16 +132,27 @@ What is fine to commit publicly:
 - The maintainer's name in copyright headers and `CONTRIBUTING.md` (Ray Klundt — by deliberate choice, see D15/D17).
 - The maintainer's git author email (currently `rayklundt@outlook.com`, visible in every commit's metadata via `git log`). This is intrinsic to git and is required by the DCO sign-off (D16) — it is NOT a public-repo-hygiene violation, just a public fact of using git with DCO. Do not flag in `/wrap-sprint`.
 - **Personal-machine local paths.** Never commit a path that identifies your specific machine, user, or project directory — `C:\Users\<you>\code\slaylist`, `D:\projects\slaylist`, `/home/<you>/code/slaylist`, `~/dev/slaylist`, etc. Document the project's *constraints* (filesystem must support symlinks per D34, OS-specific tooling) but use generic placeholders (`<your-project-path>`, "your project directory") for the path itself. **Commit messages count** — `git log` is permanent on a public repo. `/wrap-sprint` InfoSec checks for this every sprint.
-- **No agent-tool branding on any public-readable surface of the repo.** The repo is tool-agnostic in voice everywhere a public reader can see. Five distinct surfaces, all covered by the same rule:
-  - **Committed file prose** (docs, sprint files, guides, CLAUDE.md body, etc.) — use "the agent" or passive voice ("a guide is written before each `[Human]` task"), not specific tool names like "Claude Code" or "Claude Opus".
-  - **Commit message subject + body** — same rule. Describe what changed without naming the agent-tool. *Especially* matters because `git log` is permanent and public; squash-merge commits collect all the message bodies of the merged commits, so any agent-tool mention in a sprint commit's body lands in develop's history.
-  - **Commit message trailers** — NO `Co-Authored-By: <vendor-tool>...` trailers. The DCO `Signed-off-by:` (D16) is the only required commit-message-metadata.
-  - **PR descriptions and issue bodies** — same rule. They're publicly visible and indexable on the repo page; clicking into an old PR exposes the body text directly.
-  - **Tag messages** (when annotated tags are added in later sprints) — same rule.
+- **Speak in roles, not in individual names.** The repo's voice is contributor-agnostic on every public-readable surface. Same principle applies to every kind of individual contributor (human or otherwise): a person's first name, a specific tool/vendor name, an organization name — none belong in committed prose. Prose uses role names (*"the owner"*, *"the agent"*, *"the human"*, *"a reviewer"*, *"an uploader"*, *"a listener"*, *"a kid"*) or passive voice.
 
-  **Carve-outs (kept as-is, on every surface above):** the literal `.claude/` directory path (it's the runtime path the tool expects, like `node_modules/` or `.git/`), the `CLAUDE.md` filename (the agent's expected entry-point file at the repo root), and `.claude/settings.*` config-file paths. These are necessary literal references and don't constitute branding.
+  **Two equally-covered example classes:**
+  - Human first names — *"Owner first-name does X"* / *"Kid 1's song"* / *"Parent uploaded"* → use *"the owner"* / *"a kid"* / *"a parent"* or passive voice.
+  - Tool/vendor names — *"\<agent-tool\> writes the guide"* / *"\<IDE-name\> autocompleted"* / *"\<vendor-org\> attribution"* → use *"the agent"* / *"the editor"* / passive voice or describe the action without attribution.
 
-  `/wrap-sprint` InfoSec checks this across (a) files staged in the diff, (b) commit messages on the branch, and (c) the PR description body when the PR is open, every sprint.
+  **Five public-readable surfaces the rule covers:**
+  - **Committed file content** (docs, sprint files, guides, etc.) — use role names or passive voice.
+  - **Commit message subject + body** — *especially* matters: `git log` is permanent on a public repo, and squash-merge commits collect every constituent commit's body into a single message that lands on `develop` forever.
+  - **Commit message trailers** — NO `Co-Authored-By: <person-or-tool>` trailers. The DCO `Signed-off-by:` (D16) is the only required trailer.
+  - **PR descriptions, issue bodies, review comments** — same rule. Publicly visible and indexable.
+  - **Tag messages** (when annotated tags arrive in later sprints) — same rule.
+
+  **Carve-outs (literal references that aren't prose):**
+  - The maintainer's name + email in `LICENSE` copyright headers and per-source-file SPDX headers (intrinsic to AGPL preservation per D15).
+  - The maintainer's name + email in git commit author and DCO `Signed-off-by:` lines (intrinsic to git identity + D16; visible in `git log` regardless of any prose rule).
+  - The `CLAUDE.md` filename (literal entry-point path the agent's runtime expects to find).
+  - The `.claude/` directory path and `.claude/settings.*` config-file paths (literal tool-config paths the runtime expects; analogous to `.git/`, `node_modules/`).
+  - Family-identifying detail in the gitignored local notes (`infra/dev-resources.md`, `infra/prod-resources.md`) — those exist precisely to hold what doesn't belong in public files.
+
+  `/wrap-sprint` InfoSec checks this on every sprint across (a) files staged in the diff, (b) commit messages on the branch, and (c) the PR description body when the PR is open. A hit = **MODERATE** finding; **CRITICAL** if it's a `Co-Authored-By: <person-or-tool>` trailer (those become contributor attributions on GitHub's Contributors view, which is exactly the failure mode this rule was added to prevent).
 
 If you find a violation, treat the affected value as compromised (rotate the secret, rename the resource, etc.) and remove it in a follow-up commit. `git history` is forever on a public repo — prevention beats cleanup.
 

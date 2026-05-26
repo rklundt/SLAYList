@@ -67,17 +67,19 @@ Run each as a distinct perspective with its own checklist. For each, list concre
   - **Commit messages** count — `git log` is permanent on a public repo. Scan with: `git log -p develop..HEAD | grep -iE '[A-Za-z]:[\\/]|/home/[^/]+/|/Users/[^/]+/' | head -20` and inspect each hit.
   
   Generic placeholders (`<your-project-path>`, `/path/to/your/repo`, "your project directory") are fine. A real path that identifies a specific machine, user, or local directory choice = **MODERATE** finding (or **CRITICAL** if the path reveals family/organizational info or has been on the public repo for an extended period without notice). See the "Personal-machine local paths" rule in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene".
-- **Agent-tool branding leak (every sprint that adds or edits committed content — files OR commit messages OR PR/issue bodies).** The repo is tool-agnostic in voice on every public-readable surface. Scan three surfaces:
-  - **Files staged in the diff** — `git diff develop..HEAD | grep -E '^\+' | grep -E '\bClaude\b|[Aa]nthropic'`
-  - **Commit messages on the branch** — `git log develop..HEAD --format=%B | grep -E '\bClaude\b|[Aa]nthropic'`
-  - **PR description body when the PR is open** — `gh pr view <N> --json body --jq .body | grep -E '\bClaude\b|[Aa]nthropic'`
+- **Individual-contributor-name leak (every sprint that adds or edits committed content — files OR commit messages OR PR/issue bodies).** The repo's voice is contributor-agnostic on every public-readable surface — proper nouns identifying individual people, specific tools, or vendor orgs don't belong in committed prose; role names ("the owner", "the agent", "a reviewer", "an uploader", "a listener", "a kid") or passive voice do. See the "Speak in roles, not in individual names" rule in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene" for the full principle + carve-out list.
 
-  A hit on any surface = **MODERATE** finding (or **CRITICAL** if it's a vendor-tool `Co-Authored-By:` trailer, since those become contributor attributions on GitHub's Contributors view). **Carve-outs:** the literal `.claude/` directory path, the `CLAUDE.md` filename, and `.claude/settings.*` paths are allowed — they're necessary tool-config references, not branding. Exclude these from the grep:
+  **Scan three surfaces. Tune the proper-noun regex to whatever individual names the current contributor base might leak (human first names + tool/vendor names known to be in play):**
+  - **Files staged in the diff** — `git diff develop..HEAD | grep -E '^\+' | grep -E '<your-name-list-regex>'`
+  - **Commit messages on the branch** — `git log develop..HEAD --format=%B | grep -E '<your-name-list-regex>'`
+  - **PR description body when the PR is open** — `gh pr view <N> --json body --jq .body | grep -E '<your-name-list-regex>'`
+
+  **Always exclude the carve-out paths** (see DEVELOPER_GUIDE.md for the full list — these are literal tool-config / filesystem references, not prose):
   ```
-  ... | grep -v 'CLAUDE\.md' | grep -v '\.claude/'
+  ... | grep -v 'CLAUDE\.md' | grep -v '\.claude/' | grep -v '^Signed-off-by:' | grep -v '^Author:' | grep -v 'Copyright (c)'
   ```
 
-  See the "No agent-tool branding on any public-readable surface of the repo" rule in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene" for the full carve-out list.
+  A hit on any surface = **MODERATE** finding; **CRITICAL** if it's a `Co-Authored-By: <person-or-tool>` trailer (those become contributor attributions on GitHub's Contributors view — the load-bearing reason this check exists).
 
 ### 5. Support
 - Is it usable by a non-technical family member / kid on a phone?
