@@ -65,6 +65,25 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 
 **Used by:** Sprint 2.1 (stored as GitHub Actions secret `APP_INSIGHTS_CONNECTION_STRING_DEV`), Sprint 2.2 (wired into SWA app settings as `APPLICATIONINSIGHTS_CONNECTION_STRING`).
 
+## Static Web App
+
+| Field | Value |
+|---|---|
+| Name | `swa-music-slaylist-dev-use2` |
+| Resource group | `rg-music-slaylist-dev-use2` |
+| Region | East US 2 |
+| Tier | **Free** (D26 — Standard tier unlocks custom domain / IP allowlists / BYO functions; none needed at family scale; prod-custom-domain decision deferred to Sprint 9.1) |
+| Deployment source at creation | **`Other`** (NOT `GitHub` — see D22 safeguard below) |
+| Default hostname | `<prefix>.<n>.azurestaticapps.net` (Azure assigns; capture the full hostname here once created) |
+| Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.Web/staticSites/swa-music-slaylist-dev-use2` |
+| **Deployment token (break-glass fallback)** | `<full token — keep secret>` — captured here per Sprint 1.2 acceptance. **Per D37, this token is NOT stored in GitHub Secrets and NOT used by CI.** The deploy at Sprint 2.2 uses OIDC-authenticated `az staticwebapp deploy` instead. The token remains as a documented break-glass fallback for ad-hoc operator deploys from a trusted laptop. |
+| Auto-deploy workflow file in repo | **None** — verified absent (the Sprint 1.2 portal Step 3 safeguard: choosing `Other` for deployment source prevents Azure from auto-creating a `.github/workflows/azure-static-web-apps-*.yml` file with the trivial frontend on develop, which would deploy without the D22 gate that lands at Sprint 2.2). |
+| Created | Sprint 1.2 |
+
+**D22 safeguard — why "Other" for deployment source:** SWA's portal create flow offers a "GitHub" deployment-source option that, if selected, auto-generates a deploy workflow in your repo AND triggers an immediate deploy of the current `develop` HEAD using the SWA deployment token. **Today, `develop`'s `staticwebapp.config.json` has no D22 auth gate** (the gate ships in Sprint 2.2 with the first real deploy). Letting SWA auto-deploy at 1.2 would produce a publicly-reachable-without-auth state on commit one of the resource existing — exactly what D22 forbids. Choosing `Other` keeps the SWA as an empty deploy target until 2.2 lands the gated workflow.
+
+**Used by:** Sprint 2.1 (OIDC federated identity granted Contributor on the dev RG can deploy to this SWA via `az staticwebapp deploy`; no token reference needed in workflow). Sprint 2.2 (first real deploy lands the D22 gate + content). Sprint 2.3 (verify gate works against the deployed URL).
+
 ## Budget alerts
 
 | Field | Value |
