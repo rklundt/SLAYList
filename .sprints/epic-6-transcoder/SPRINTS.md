@@ -27,7 +27,7 @@ Reviewer focus added to this sprint at planning time. Prod image pipeline = Epic
 
 ---
 
-## Sprint 6.1 — Transcode logic  **[Claude Code]**
+## Sprint 6.1 — Transcode logic  **[Agent]**
 - As a developer, I want the worker to read a raw file, transcode to the chosen format, write to `finished`, fill format/size/duration, and flip the record to `ready` — or `failed` on error.
 
 Acceptance:
@@ -38,7 +38,7 @@ Acceptance:
   - **(b, acceptable filter):** capture ffmpeg's stderr to memory, substitute the input filename with the songId in every captured line, then emit the sanitized text. The raw stderr never reaches App Insights.
   - Record which mitigation was chosen and why in `docs/DECISIONS.md` (a sub-bullet under D32, not a new D-entry — D32 already contemplates both).
 
-## Sprint 6.2 — Containerize with ffmpeg  **[Claude Code]**
+## Sprint 6.2 — Containerize with ffmpeg  **[Agent]**
 - As a developer, I want a Dockerfile with ffmpeg baked in so the worker runs anywhere.
 
 Acceptance:

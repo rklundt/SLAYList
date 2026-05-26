@@ -1,6 +1,6 @@
 # Epic 1 — Azure Landing Zone (dev resources)
 
-**Goal:** Create the dev-side Azure resources, by hand the first time so the owner understands them. Claude Code writes a step-by-step guide before each human task.
+**Goal:** Create the dev-side Azure resources, by hand the first time so the owner understands them. A step-by-step guide is written before each human task.
 
 **Exit criterion:** dev resources exist in the portal. Nothing wired together yet.
 

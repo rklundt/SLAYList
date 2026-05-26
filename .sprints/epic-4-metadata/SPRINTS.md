@@ -8,7 +8,7 @@
 
 ---
 
-## Sprint 4.1 — Table schema + shared Song type + states; **harden the CI test gate (D23)**  **[Claude Code]**
+## Sprint 4.1 — Table schema + shared Song type + states; **harden the CI test gate (D23)**  **[Agent]**
 - As a developer, I want the Table Storage schema and the `/shared` `Song` type to match, with states `processing|ready|failed|deactivated`.
 - As the owner, I want **the CI test gate flipped from soft (advisory) to hard (blocking) at the start of Epic 4 (D23)** — Epic 4 is when real, durable code starts landing and regression risk crosses the threshold where tests must enforce, not advise.
 
@@ -21,15 +21,15 @@ Acceptance:
   - Update `docs/VERSIONS.md` to record the soft→hard flip with date.
   - Note the supersession in `/close-sprint`'s doc-sync — the soft-mode era is over, recorded as history not erased.
 
-## Sprint 4.2 — API CRUD-ish operations  **[Claude Code]**
+## Sprint 4.2 — API CRUD-ish operations  **[Agent]**
 - As a developer, I want API operations to create, read, list, and update song records, role-checked.
 Acceptance: create/read/list/update implemented against dev Table Storage; list supports filtering out `deactivated` by default; operations respect roles.
 
-## Sprint 4.3 — Barebones list screen from seeded records  **[Claude Code]**
+## Sprint 4.3 — Barebones list screen from seeded records  **[Agent]**
 - As the owner, I want a plain "list all songs" screen reading real metadata, seeded with fake records.
 Acceptance: screen lists seeded records with title/owner/genre/state; deactivated hidden by default; no audio anywhere yet.
 
-## Sprint 4.4 — Nightly Table Storage backup job (D33)  **[Claude Code]**
+## Sprint 4.4 — Nightly Table Storage backup job (D33)  **[Agent]**
 - As the owner, I want a nightly export of the Song table to the `table-backups` blob container (provisioned in Sprint 1.3) so a bug, mis-issued delete, or metadata corruption is recoverable. Tables have no native versioning or soft-delete — this backup is the recovery posture.
 
 Acceptance:

@@ -16,12 +16,12 @@ Acceptance: app registration exists; three roles defined; client/tenant IDs capt
 - As the owner, I want an admin-created shared family member account assigned a role, since the kids may not have email yet (Model A).
 Acceptance: shared account exists; assigned a role; documented how to delete/reassign later.
 
-## Sprint 3.3 — Wire SWA auth; swap the D22 gate to custom Entra; API reads role from token  **[Claude Code]**
+## Sprint 3.3 — Wire SWA auth; swap the D22 gate to custom Entra; API reads role from token  **[Agent]**
 - As a developer, I want the Static Web App login flow wired to the custom Entra app registration (3.1) and the API to read the caller's role from the token on every request.
 - As the owner, I want Epic 2's `staticwebapp.config.json` Path-A′ gate (D22) updated in place — the route rule stays; only the redirect target changes from `/.auth/login/aad` (pre-configured AAD, any Microsoft account) to the custom Entra provider's login route. The gate is never absent during the swap.
 Acceptance: login works on dev; API has a reusable role-check it applies per request; unauthenticated requests are rejected; the `staticwebapp.config.json` route gate now redirects to the custom Entra provider; verified that a Microsoft account NOT assigned a role to this app registration cannot complete sign-in (the any-Microsoft-account gap from Epic 2 is closed).
 
-## Sprint 3.4 — Login gate + role proof; supersede the D22 corollary in place  **[Claude Code]**
+## Sprint 3.4 — Login gate + role proof; supersede the D22 corollary in place  **[Agent]**
 - As the owner, I want a "must log in" gate and a trivial "your role is X" display to prove the chain end to end.
 - As the owner, I want the time-bounded D22 corollary in `CLAUDE.md` (the "no content beyond the trivial skeleton" rule) **superseded in place** at this sprint's `/close-sprint` — rewritten from an active prohibition to a historical note, matching how `docs/DECISIONS.md` entries are superseded (D12 → D19 pattern). Nothing is silently removed; the reasoning and the Epic-2→3 history survive as a visible record.
 

@@ -8,15 +8,15 @@
 
 ---
 
-## Sprint 8.1 — Audio player + serve from finished blob  **[Claude Code]**
+## Sprint 8.1 — Audio player + serve from finished blob  **[Agent]**
 - As a listener, I want to play a `ready` song from the library.
 Acceptance: player plays finished audio; only `ready` songs are playable; access is authenticated.
 
-## Sprint 8.2 — Browser/Cache-API local caching  **[Claude Code]**
+## Sprint 8.2 — Browser/Cache-API local caching  **[Agent]**
 - As the owner, I want repeat plays served from the device cache so they don't re-hit Azure egress.
 Acceptance: correct cache headers; replays serve locally; this lays the PWA caching groundwork.
 
-## Sprint 8.3 — Mobile-first polish  **[Claude Code]**
+## Sprint 8.3 — Mobile-first polish  **[Agent]**
 - As a kid, I want it to feel good on a phone/tablet.
 Acceptance: touch-friendly, responsive; basic PWA manifest so it's installable to the home screen.
 

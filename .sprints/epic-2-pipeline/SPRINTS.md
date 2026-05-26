@@ -22,7 +22,7 @@ Acceptance:
 - Required GitHub Actions secrets present: **storage account connection string** (from 1.3), **App Insights connection string** (from 1.1). Each documented in `infra/dev-resources.md` (gitignored): which secret feeds which app setting. The **SWA deployment token is explicitly NOT stored in GitHub Secrets** per D37 — it lives only in gitignored `infra/dev-resources.md` as a break-glass fallback.
 - Nothing sensitive in the repo; `gh secret list` output recorded in the sprint close-out (must show the storage + App Insights secrets only — no SWA-deploy-token secret).
 
-## Sprint 2.2 — Actions workflow (build + deploy to dev SWA) + auth gate + CI tests (soft mode)  **[Claude Code]**
+## Sprint 2.2 — Actions workflow (build + deploy to dev SWA) + auth gate + CI tests (soft mode)  **[Agent]**
 - As a developer, I want a workflow that builds frontend + API and deploys to the dev Static Web App on push to `develop`.
 - As the owner, I want the deployed dev URL to require authentication from the very first deploy (D22) so we never have a "ship open, secure later" window.
 - As a developer, I want **CI to run Vitest on every push** (D23) so test red/green is visible from now on — but in **soft mode** until Epic 4.1 hardens it (failures show but do NOT block the merge during scaffolding-phase epics).

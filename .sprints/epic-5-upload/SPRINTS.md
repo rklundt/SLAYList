@@ -6,15 +6,15 @@
 
 ---
 
-## Sprint 5.1 — Input validation  **[Claude Code + owner decision]**
+## Sprint 5.1 — Input validation  **[Agent + owner decision]**
 - As the owner, I want an input allowlist and a max file size so the transcoder isn't handed garbage and nobody uploads a 2GB file by accident.
 Acceptance: allowlist + size cap decided (record in BACKLOG resolution) and enforced server-side; clear rejection messages.
 
-## Sprint 5.2 — Upload UI + endpoint → raw blob + processing record  **[Claude Code]**
+## Sprint 5.2 — Upload UI + endpoint → raw blob + processing record  **[Agent]**
 - As an uploader, I want to upload a song and see it appear as "processing."
 Acceptance: upload UI; API writes raw file to `raw-uploads`; creates Table record in `processing`; filename follows `{title-slug}_{timestamp}_{shortid}.{ext}` (D8); soft "duplicate title?" warning is a nicety, not a constraint.
 
-## Sprint 5.3 — Role enforcement on upload  **[Claude Code]**
+## Sprint 5.3 — Role enforcement on upload  **[Agent]**
 - As the owner, I want only uploaders/admins to upload so listeners can't write.
 Acceptance: listener role cannot upload; uploader/admin can; enforced server-side.
 

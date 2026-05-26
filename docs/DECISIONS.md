@@ -53,8 +53,8 @@ Multi-tenant is deferred (the likely future is more *listeners*, not more tenant
 ## D13 — PWA-shaped from the start
 The Android Play Store app (if ever built) is a thin wrapper (TWA) around the PWA, not a separate native codebase. Building PWA-shaped now (responsive, manifest, Cache API) costs little and means no replatform later. The Cache API work doubles as the egress-saving local audio cache.
 
-## D14 — Human merges; Claude Code prepares
-Claude Code branches, pushes, and opens PRs with full descriptions, and surfaces merge conflicts as a Claude-Code/human consult (proposes resolutions, human confirms). The merge click itself is human — it's the moment of consequence and a cheap place for a human glance. Same for main→prod.
+## D14 — Human merges; the agent prepares
+The agent branches, pushes, and opens PRs with full descriptions, and surfaces merge conflicts as an agent/human consult (proposes resolutions, human confirms). The merge click itself is human — it's the moment of consequence and a cheap place for a human glance. Same for main→prod.
 
 ## D15 — AGPL-3.0-or-later, public repo
 The repo is public; the running app is private (login-gated, family-only). License is **GNU AGPL-3.0-or-later**, full FSF text in `LICENSE`. Considered MIT/Apache-2.0 (too permissive — wouldn't force a SaaS fork to share back) and "all rights reserved" (incompatible with publishing the source). Considered plain GPL-3.0 (silent on the network-service case — AGPL's § 13 closes that gap). AGPL costs evaluated and accepted: iOS App Store distribution would be friction (Android via TWA is fine — the documented mobile path); future relicensing requires contributor consent (mitigated by D16). Every source file carries a two-line SPDX header (`Copyright (c) <year> Ray Klundt` + `SPDX-License-Identifier: AGPL-3.0-or-later`); missing headers are a `/wrap-sprint` finding. AGPL § 13 obligates the deployed UI to offer users a link to the corresponding source — handled in the running app (footer link to the public repo) by the time Epic 8 ships.

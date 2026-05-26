@@ -7,7 +7,7 @@
 ---
 
 ## Sprint 0.1 — Repo, branches, protection
-**[Human]** (Claude Code writes the step-by-step guide first, performs the hygiene scan, and prepares `.gitignore` + the initial commit content; the human creates the GitHub repo and executes the push.)
+**[Human, guided]** (The agent writes the step-by-step guide first, performs the hygiene scan, and prepares `.gitignore` + the initial commit content; the human creates the GitHub repo and executes the push.)
 
 User stories:
 - As the owner, I want a **public** GitHub repo (AGPL-3.0-or-later per D15/D17) so the source is openly available from commit one — while the running app stays private (login-gated, Epic 3).
@@ -17,17 +17,17 @@ User stories:
 
 Acceptance:
 - **Hygiene scan** of the scaffold contents complete: no secrets, tokens, real resource names, real personal/kid detail, or real email addresses (other than the maintainer's copyright line) anywhere in the working tree. Findings recorded; everything resolved before `git init`.
-- **`.gitignore`** present at the repo root and reviewed against the public-repo hygiene rules in `docs/DEVELOPER_GUIDE.md`. Covers: Node (`node_modules/`, `dist/`, `.vite/`), env/secret patterns (`.env`, `.env.*`, `local.settings.json`, `*.pem`, `*.key`), editor/OS noise (`.vscode/`, `.idea/`, `.DS_Store`, `Thumbs.db`), Azure Functions Core Tools local state, Static Web Apps CLI artifacts, and **Claude Code per-user local state** (`.claude/settings.local.json` — already exists in the working tree; this file holds local permission grants and must not be committed; `.claude/commands/` and `.claude/settings.json` are repo-shared and DO get committed). Pinned via `git status` confirming nothing sensitive is staged.
+- **`.gitignore`** present at the repo root and reviewed against the public-repo hygiene rules in `docs/DEVELOPER_GUIDE.md`. Covers: Node (`node_modules/`, `dist/`, `.vite/`), env/secret patterns (`.env`, `.env.*`, `local.settings.json`, `*.pem`, `*.key`), editor/OS noise (`.vscode/`, `.idea/`, `.DS_Store`, `Thumbs.db`), Azure Functions Core Tools local state, Static Web Apps CLI artifacts, and **per-user agent/tool local state** (`.claude/settings.local.json` — already exists in the working tree; this file holds local permission grants and must not be committed; `.claude/commands/` and `.claude/settings.json` are repo-shared and DO get committed). Pinned via `git status` confirming nothing sensitive is staged.
 - **Public** GitHub repo exists (deliberate "Set visibility: Public" step in the guide); `main` and `develop` both present; `develop` is the default working branch.
 - Branch protection on `main` (and ideally `develop`): PR required, no direct pushes.
 - **Public-repo GitHub security baseline enabled (D31)**: secret scanning ON, **push protection ON** (the critical control — blocks secrets at `git push` before they reach GitHub), Dependabot security updates ON, CodeQL code scanning ON (default config). All free on public repos; not enabling them is a partial implementation of D17.
 - **Post-push secret-scanning verification (IS-4):** immediately after the first push, run `gh secret-scanning alert list` (or check Security tab in the GitHub UI) to confirm zero alerts. If anything flagged, rotate immediately and remove from history per the 0.1 guide's "If something goes wrong" section.
 - This scaffold's files (post-hygiene-scan) are committed to `develop` as the first commit. Commit is signed off (`git commit -s`) per D16.
 
-Notes: Claude Code produces `docs/guides/0.1-repo-setup.md` with exact clicks/commands (including the deliberate "set visibility to Public" step); the human executes repo creation and push. Claude Code does NOT run `gh repo create` — repo creation and visibility are account-level decisions the owner makes, and this sets the right precedent for the Azure portal steps in Epic 1.
+Notes: `docs/guides/0.1-repo-setup.md` is written first with exact clicks/commands (including the deliberate "set visibility to Public" step); the human executes repo creation and push. The agent does NOT run `gh repo create` — repo creation and visibility are account-level decisions the owner makes, and this sets the right precedent for the Azure portal steps in Epic 1.
 
 ## Sprint 0.2 — Monorepo scaffold + shared types skeleton
-**[Claude Code]**
+**[Agent]**
 
 User stories:
 - As a developer, I want the repo folders (`/frontend`, `/api`, `/transcoder`, `/shared`, `/infra`, `/.github/workflows`) so each concern has a home.
@@ -42,7 +42,7 @@ Acceptance:
 - Frontend and API both successfully import from `/shared`.
 
 ## Sprint 0.3 — Local run (one command)
-**[Claude Code]**
+**[Agent]**
 
 User stories:
 - As a developer, I want one command to run the frontend + API locally so I can see "it works" before any Azure exists.
@@ -58,12 +58,12 @@ Acceptance:
 
 User stories:
 - As a future developer, I want the docs (CLAUDE, ARCHITECTURE, DECISIONS, DEVELOPER_GUIDE) present and accurate so I can onboard.
-- As the owner, I want the three slash-commands actually recognized by Claude Code in this environment before relying on them.
+- As the owner, I want the three slash-commands actually recognized by the agent in this environment before relying on them.
 
 Acceptance:
 - Docs present (they are, from scaffold) and reviewed against the actual scaffold for accuracy.
 - `README.md` quickstart written.
-- **Slash-command location verified and invokable.** Claude Code loads project slash commands from `.claude/commands/*.md` (not `.commands/`); the three files were moved there during pre-Epic-0 alignment. This sprint confirms `/start-sprint`, `/wrap-sprint`, `/close-sprint` are actually invokable in this environment after the move — a smoke-test, not a guess.
+- **Slash-command location verified and invokable.** The agent loads project slash commands from `.claude/commands/*.md` (not `.commands/`); the three files were moved there during pre-Epic-0 alignment. This sprint confirms `/start-sprint`, `/wrap-sprint`, `/close-sprint` are actually invokable in this environment after the move — a smoke-test, not a guess.
 - `.sprints/INDEX.md` reflects Epic 0 as done at sprint's end.
 
 ---

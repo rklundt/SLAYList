@@ -14,7 +14,7 @@ A React/TypeScript PWA talks to a light TypeScript API (both hosted on an Azure 
   README.md             quickstart
   /docs                 ARCHITECTURE, DECISIONS, this guide, VERSIONS, BACKLOG
   /.sprints             epics/sprints + INDEX.md
-  /.claude/commands     slash-command definitions (/start-sprint, /wrap-sprint, /close-sprint) — Claude Code's expected location
+  /.claude/commands     slash-command definitions (/start-sprint, /wrap-sprint, /close-sprint) — the agent's expected location
   /frontend             React + TS (Vite) PWA
   /api                  TypeScript API (Static Web App integrated functions)
   /transcoder           Container App: ffmpeg worker + Dockerfile
@@ -35,7 +35,7 @@ A React/TypeScript PWA talks to a light TypeScript API (both hosted on an Azure 
 1. `/start-sprint <epic>/<sprint>` — agent reloads context (CLAUDE.md → ARCHITECTURE → DECISIONS → the sprint file), audits what's already built, and proposes a plan. You approve before it breaks ground.
 2. Build the user stories.
 3. `/wrap-sprint` — five skeptical reviewers (sr dev, solution architect, devops, infosec, support) produce critical/moderate/low findings. **Any critical finding blocks the "proceed" recommendation.** You decide what to fix (including "fix everything now").
-4. `/close-sprint` — agent updates docs/INDEX for anything the sprint changed (and flags contradictions), prepares the PR to `develop`, and on conflicts runs a Claude-Code/human consult rather than auto-resolving. You perform the merge.
+4. `/close-sprint` — agent updates docs/INDEX for anything the sprint changed (and flags contradictions), prepares the PR to `develop`, and on conflicts runs an agent/human consult rather than auto-resolving. You perform the merge.
 
 ## Local development
 
@@ -123,7 +123,7 @@ What must NOT land in any committed file:
 - Real email addresses other than the maintainer's copyright line. Use `you@example.com` / `family@example.com` in examples.
 - Real `ownerDisplayName` values (Entra `preferred_username`, typically an email/handle — PII). Use fake names like `"Alice"`, `"Test Uploader"`, or `"user@example.com"` in fixtures and tests. For `ownerOid` use any opaque placeholder (e.g., `"00000000-0000-0000-0000-000000000001"`).
 - The `libraryId` field itself is safe to commit at its current value `'slaylist-home'` (generic application label, not PII, not the Entra tenant ID). If a multi-library future ever introduces real per-family identifiers, those go in config, never in code.
-- **Claude Code per-user local state** — `.claude/settings.local.json` (holds local permission grants and per-machine preferences) is `.gitignore`d. `.claude/commands/` (the three project slash commands) and `.claude/settings.json` (if present — repo-shared settings) ARE committed. If you add a new tool-permission grant during work, it lands in `settings.local.json` by design; do not move it into the shared `settings.json` unless you mean every developer/agent to inherit it.
+- **Per-user agent/tool local state** — `.claude/settings.local.json` (holds local permission grants and per-machine preferences) is `.gitignore`d. `.claude/commands/` (the three project slash commands) and `.claude/settings.json` (if present — repo-shared settings) ARE committed. If you add a new tool-permission grant during work, it lands in `settings.local.json` by design; do not move it into the shared `settings.json` unless you mean every developer/agent to inherit it.
 
 What is fine to commit publicly:
 
@@ -132,6 +132,7 @@ What is fine to commit publicly:
 - The maintainer's name in copyright headers and `CONTRIBUTING.md` (Ray Klundt — by deliberate choice, see D15/D17).
 - The maintainer's git author email (currently `rayklundt@outlook.com`, visible in every commit's metadata via `git log`). This is intrinsic to git and is required by the DCO sign-off (D16) — it is NOT a public-repo-hygiene violation, just a public fact of using git with DCO. Do not flag in `/wrap-sprint`.
 - **Personal-machine local paths.** Never commit a path that identifies your specific machine, user, or project directory — `C:\Users\<you>\code\slaylist`, `D:\projects\slaylist`, `/home/<you>/code/slaylist`, `~/dev/slaylist`, etc. Document the project's *constraints* (filesystem must support symlinks per D34, OS-specific tooling) but use generic placeholders (`<your-project-path>`, "your project directory") for the path itself. **Commit messages count** — `git log` is permanent on a public repo. `/wrap-sprint` InfoSec checks for this every sprint.
+- **No agent-tool branding in committed prose or commit-message metadata.** The repo is tool-agnostic in voice. Prose uses "the agent" or passive voice ("a guide is written before each `[Human]` task"), not specific tool names. Commit messages do NOT carry `Co-Authored-By: <vendor-tool>...` trailers — the DCO `Signed-off-by` line (D16) is the only commit-message-metadata required. The `.claude/` directory itself stays as literal tool config (it's the path the tool expects), and `CLAUDE.md` keeps its filename for the same reason — but committed prose INSIDE files uses tool-agnostic language. `/wrap-sprint` InfoSec checks this every sprint.
 
 If you find a violation, treat the affected value as compromised (rotate the secret, rename the resource, etc.) and remove it in a follow-up commit. `git history` is forever on a public repo — prevention beats cleanup.
 
