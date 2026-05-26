@@ -67,6 +67,17 @@ Run each as a distinct perspective with its own checklist. For each, list concre
   - **Commit messages** count — `git log` is permanent on a public repo. Scan with: `git log -p develop..HEAD | grep -iE '[A-Za-z]:[\\/]|/home/[^/]+/|/Users/[^/]+/' | head -20` and inspect each hit.
   
   Generic placeholders (`<your-project-path>`, `/path/to/your/repo`, "your project directory") are fine. A real path that identifies a specific machine, user, or local directory choice = **MODERATE** finding (or **CRITICAL** if the path reveals family/organizational info or has been on the public repo for an extended period without notice). See the "Personal-machine local paths" rule in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene".
+- **Agent-tool branding leak (every sprint that adds or edits committed content — files OR commit messages OR PR/issue bodies).** The repo is tool-agnostic in voice on every public-readable surface. Scan three surfaces:
+  - **Files staged in the diff** — `git diff develop..HEAD | grep -E '^\+' | grep -E '\bClaude\b|[Aa]nthropic'`
+  - **Commit messages on the branch** — `git log develop..HEAD --format=%B | grep -E '\bClaude\b|[Aa]nthropic'`
+  - **PR description body when the PR is open** — `gh pr view <N> --json body --jq .body | grep -E '\bClaude\b|[Aa]nthropic'`
+
+  A hit on any surface = **MODERATE** finding (or **CRITICAL** if it's a vendor-tool `Co-Authored-By:` trailer, since those become contributor attributions on GitHub's Contributors view). **Carve-outs:** the literal `.claude/` directory path, the `CLAUDE.md` filename, and `.claude/settings.*` paths are allowed — they're necessary tool-config references, not branding. Exclude these from the grep:
+  ```
+  ... | grep -v 'CLAUDE\.md' | grep -v '\.claude/'
+  ```
+
+  See the "No agent-tool branding on any public-readable surface of the repo" rule in `docs/DEVELOPER_GUIDE.md` "Public-repo hygiene" for the full carve-out list.
 
 ### 5. Support
 - Is it usable by a non-technical family member / kid on a phone?
