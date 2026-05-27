@@ -120,6 +120,8 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 |---|---|---|
 | `Songs` | Created, empty | Sprint 4.1 (table schema + shared `Song` type + states `processing\|ready\|failed\|deactivated`) |
 
+**Code constant for this table name** will live in `/shared` at Sprint 4.1 (e.g., `TABLE_NAME_SONGS = 'Songs'`). Do NOT hardcode the literal `"Songs"` in `api/` or `transcoder/` — that's the same drift D3 was trying to prevent for metadata. Reference the shared constant; if it ever changes, one edit propagates.
+
 **Used by:**
 - **Sprint 2.1** — connection string stored as GitHub Actions secret `STORAGE_CONNECTION_STRING_DEV`.
 - **Sprint 2.2** — wired into SWA app settings as `AzureWebJobsStorage` (the standard name the Azure Functions runtime expects).
