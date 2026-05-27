@@ -180,6 +180,40 @@ requests
 | order by duration desc
 ```
 
+### Storage account operations — recent reads / writes / deletes (Sprint 1.3+, requires diagnostic settings configured)
+
+Surfaces every authenticated operation on the dev storage account in the last hour, ordered most-recent-first. Useful for *"did my upload actually land?"* (Epic 5+), *"did the transcoder read the blob?"* (Epic 6+), and *"who deleted record X?"* (any sprint). Prereq: Sprint 1.3 Step 8 configured `diag-blob-to-law-dev` + `diag-table-to-law-dev` diagnostic settings on the account, forwarding `StorageRead` / `StorageWrite` / `StorageDelete` log categories to this LAW.
+
+```kql
+StorageBlobLogs
+| where TimeGenerated > ago(1h)
+| where AccountName == "stmusicslaylistdevuse2"
+| project TimeGenerated, OperationName, StatusText, Uri, CallerIpAddress
+| order by TimeGenerated desc
+```
+
+For table operations, swap the table name:
+
+```kql
+StorageTableLogs
+| where TimeGenerated > ago(1h)
+| where AccountName == "stmusicslaylistdevuse2"
+| project TimeGenerated, OperationName, StatusText, Uri, CallerIpAddress
+| order by TimeGenerated desc
+```
+
+Joined view across both services in one query (useful when debugging a flow that touches both blob + table, like Epic 5's upload → record-creation path):
+
+```kql
+union StorageBlobLogs, StorageTableLogs
+| where TimeGenerated > ago(1h)
+| where AccountName == "stmusicslaylistdevuse2"
+| project TimeGenerated, $table, OperationName, StatusText, Uri
+| order by TimeGenerated desc
+```
+
+For prod equivalents at Sprint 9.1, substitute `stmusicslaylistprodseuse2` (or whatever prod's storage account name resolves to per the naming convention).
+
 ### Find queue dead-letters (Epic 7+)
 
 ```kql
