@@ -42,7 +42,7 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 - ✅ 1.1 Resource group + naming + budget alert ($15/mo) + Application Insights (D24) — dev only; prod mirror at Sprint 9.1. D36 (public network access stays enabled) recorded.
 - ✅ 1.2 Dev Static Web App (Free tier per D26) — `swa-music-slaylist-dev-use2`, empty deploy target (Deployment source = `Other`, D22 safeguard verified); D37 (OIDC-primary deploy auth + break-glass token) added
 - ✅ 1.3 Dev storage account (blobs + table) — `stmusicslaylistdevuse2`; `raw-uploads`/`finished`/`table-backups` containers + `Songs` table; 30d soft-delete + versioning; **D28 invariant verified empty**; Storage Diagnostics → LAW wired and verified end-to-end; D38 (public-access posture) added
-- ⬜ 1.4 Dev Container App environment — with Managed Identity + storage RBAC (D25)
+- ✅ 1.4 Dev Container App environment + placeholder Container App — `cae-music-slaylist-dev-use2` hosting `ca-music-slaylist-dev-use2`; system-assigned MI + 2 storage RBAC roles per D25's cleaner half; **D25 invariant verified** (no connection string anywhere on the app); MI runtime verification deferred to Sprint 6.1 per D37-shape precedent
 - ⬜ 1.5 Dev Event Grid + queue
 - **Exit:** dev resources exist in portal. Not wired together.
 
