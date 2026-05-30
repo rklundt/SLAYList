@@ -176,6 +176,41 @@ These role assignments give the Container App's system-assigned MI Entra-RBAC ac
 
 **Used by:** Sprint 6.0 (build/push pipeline updates the Container App revision). Sprint 6.1 (transcode logic uses `DefaultAzureCredential` / equivalent SDK pattern that finds the system-assigned MI automatically). Sprint 6.3 (real ffmpeg image deploys; first end-to-end test). Sprint 7.x (KEDA queue-triggered scaling on this app; queue from Sprint 1.5).
 
+## Storage Queues (inside the storage account from Sprint 1.3)
+
+Lives inside `stmusicslaylistdevuse2`. No global uniqueness, no prefix per `infra/naming-convention.md`.
+
+| Queue | Purpose | Populated by | Drained by |
+|---|---|---|---|
+| `transcode-jobs` | Main work queue. Event Grid drops blob-created messages here when a raw upload lands in `raw-uploads`. | Sprint 7.1's event subscription (Event Grid → queue, via the Event Grid topic MI) | Sprint 7.2's Container App + Sprint 6.1's transcoder logic |
+| `transcode-jobs-poison` | **Dead-letter queue per D6.** Storage Queue has no native DLQ; the transcoder's app logic (Sprint 7.2) tracks dequeue-count per message and moves "poison" messages here after a configured maximum is exceeded, then flips the song record's state to `failed`. | Sprint 7.2's app logic (move-from-main-queue when max-dequeue exceeded) | Operator inspection / forensics. Optional drain via re-enqueue if the root cause is fixed. |
+
+**Why pre-create the poison queue at 1.5 (not 7.2):** matches the established "all stores exist before they're needed" pattern (D33's `table-backups` container at 1.3, populated by Sprint 4.4). Sprint 7.2 implements the move-to-poison logic against a known destination; no naming decision deferred into that sprint.
+
+**Queue properties (defaults):** message TTL 7 days, max message size 64 KB. Both defaults are fine — Sprint 7.2's dead-letter logic moves messages out before TTL anyway; transcode job messages are small JSON (`songId` + blob path).
+
+**Diagnostic settings:** Storage queue operations are captured by the storage account's `diag-queue-to-law-dev` diagnostic setting (Sprint 1.5 Step 6), forwarding StorageRead + StorageWrite + StorageDelete + Transaction metrics to `log-music-slaylist-dev-use2` (D24's third storage feeder leg, joining blob + table from Sprint 1.3).
+
+## Event Grid system topic
+
+| Field | Value |
+|---|---|
+| Name | `egst-music-slaylist-dev-use2` |
+| Resource group | `rg-music-slaylist-dev-use2` |
+| Region | East US 2 |
+| Topic type | **System topic** (NOT custom topic — we consume events Azure emits from a source resource; custom topics are for user-published events) |
+| Source resource type | Storage Account |
+| Source resource | `stmusicslaylistdevuse2` (the storage account from Sprint 1.3) |
+| System-assigned Managed Identity | **Enabled at creation** — Sprint 7.1's event subscription authenticates to the queue via this MI; no SAS token or connection string for delivery |
+| **MI Principal (Object) ID** | `<guid>` — captured at Sprint 1.5 Step 5 |
+| Tenant ID (for MI) | same as account identity above |
+| Diagnostic settings target | `log-music-slaylist-dev-use2` — Event Grid `DeliveryFailures` + `PublishFailures` + `AllMetrics` categories (D24's fourth feeder leg, joining SWA managed functions + Container App transcoder + Storage Diagnostics) |
+| Subscriptions at Sprint 1.5 | **none** — Sprint 7.1 creates the subscription that wires `raw-uploads` blob-created events to the `transcode-jobs` queue |
+| Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.EventGrid/systemTopics/egst-music-slaylist-dev-use2` |
+| Created | Sprint 1.5 |
+
+**Used by:** Sprint 7.1 (creates the event subscription on this topic with subject filter `/blobServices/default/containers/raw-uploads/` and event-type filter `Microsoft.Storage.BlobCreated`; endpoint = `transcode-jobs` queue; auth = system-assigned MI via `Storage Queue Data Message Sender` RBAC role on the storage account, granted at 7.1 as part of that sprint's wiring scope). Sprint 7.2 (transcoder consumes from the queue end-to-end).
+
 ## Budget alerts
 
 | Field | Value |
