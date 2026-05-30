@@ -32,7 +32,7 @@ These are the CAF-standard abbreviations for every resource type SLAYList curren
 | Static Web App | `swa-` | `swa-music-slaylist-<env>-<region>` | 1.2 | Hosts frontend + managed-functions API; Free tier per D26 |
 | Storage account | `st` (special) | see below | 1.3 | Audio blobs + metadata table + table-backups blob (D28, D33) |
 | Container App environment | `cae-` | `cae-music-slaylist-<env>-<region>` | 1.4 | Shared environment for the transcoder Container App |
-| Container App | `ca-` | `ca-music-slaylist-<env>-<region>` | 6.x | The ffmpeg transcoder; scale-to-zero |
+| Container App | `ca-` | `ca-music-slaylist-<env>-<region>` | 1.4 | The transcoder Container App — placeholder image at 1.4, replaced with real ffmpeg image at Epic 6; scale-to-zero; system-assigned MI for storage RBAC per D25 |
 | Event Grid system topic | `egst-` | `egst-music-slaylist-<env>-<region>` | 1.5 | Routes blob-created events to the queue |
 | (Storage Queue) | — | logical name (e.g. `transcode-jobs`) | 1.5 | Lives inside the storage account; no global uniqueness, no prefix needed |
 | Budget | (descriptive) | `budget-music-slaylist-<env>` | 1.1 | Budgets don't have a CAF prefix; descriptive name. Scoped to the RG, NOT subscription (per Sprint 1.1 acceptance) |

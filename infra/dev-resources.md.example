@@ -129,6 +129,53 @@ If you accidentally `git add` `dev-resources.md`, the `.gitignore` entry prevent
 - **Sprint 4.x** — first real reads/writes via the API.
 - **Sprint 6.x** — first real reads/writes via the transcoder.
 
+## Container App Environment
+
+| Field | Value |
+|---|---|
+| Name | `cae-music-slaylist-dev-use2` |
+| Resource group | `rg-music-slaylist-dev-use2` |
+| Region | East US 2 |
+| Workload profile | **Consumption** (scale-to-zero per D4; idle = $0) |
+| Linked Log Analytics workspace | `log-music-slaylist-dev-use2` (D24 — Container App console + system logs auto-flow here) |
+| Zone redundancy | off (LRS-equivalent reasoning for dev; prod 9.1 re-evaluates) |
+| VNet integration | off (storage reached via public endpoint per D38; MI-authenticated, not network-restricted) |
+| Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.App/managedEnvironments/cae-music-slaylist-dev-use2` |
+| Created | Sprint 1.4 |
+
+## Container App (placeholder transcoder)
+
+| Field | Value |
+|---|---|
+| Name | `ca-music-slaylist-dev-use2` |
+| Environment | `cae-music-slaylist-dev-use2` |
+| Resource group | `rg-music-slaylist-dev-use2` |
+| Region | East US 2 |
+| Image (at Sprint 1.4) | `mcr.microsoft.com/azuredocs/containerapps-helloworld:latest` — placeholder; Sprint 6.0 build/push pipeline replaces with our own; Sprint 6.3 lands the real ffmpeg image |
+| Ingress | **Disabled** — back-end worker; queue-triggered (Epic 7); no HTTP API surface. Disabled ingress means D22 N/A (no user-facing endpoint to gate). |
+| Scale: min replicas | **0** (D4 scale-to-zero) |
+| Scale: max replicas | **1** (single transcode at a time at family scale; multi-replica concurrency is an Epic 7+ tuning if ever needed) |
+| Scale: KEDA rules | none at Sprint 1.4 (queue-triggered KEDA rule lands at Sprint 7.x when the Storage Queue exists) |
+| System-assigned Managed Identity | **Enabled** (D25 — auth credential for storage access; never connection string) |
+| User-assigned MI | none |
+| **MI Principal (Object) ID** | `<guid>` — captured at portal Step B5; used for the two RBAC role assignments below |
+| Storage connection string in env vars / secrets | **MUST be absent** (D25 invariant — explicitly verified at portal Step B8; never set, ever) |
+| Resource ID | `/subscriptions/<sub-id>/resourceGroups/rg-music-slaylist-dev-use2/providers/Microsoft.App/containerApps/ca-music-slaylist-dev-use2` |
+| Created | Sprint 1.4 |
+
+### Storage RBAC role assignments (D25 — the "cleaner half" of the split-auth posture)
+
+These role assignments give the Container App's system-assigned MI Entra-RBAC access to the storage account from Sprint 1.3. **No storage account key or connection string is involved on the transcoder side — ever (D25).**
+
+| Role | Assignee | Scope | Why |
+|---|---|---|---|
+| `Storage Blob Data Contributor` | Container App MI Principal ID (above) | `stmusicslaylistdevuse2` storage account | Read raw-uploads, write finished (Epic 6) |
+| `Storage Table Data Contributor` | Container App MI Principal ID (above) | `stmusicslaylistdevuse2` storage account | Update `Songs` records (flip `processing` → `ready` or `failed`) |
+
+**Scope is the storage account, NOT the subscription, NOT the resource group** — least-privilege per the project's D25/D30 RBAC discipline.
+
+**Used by:** Sprint 6.0 (build/push pipeline updates the Container App revision). Sprint 6.1 (transcode logic uses `DefaultAzureCredential` / equivalent SDK pattern that finds the system-assigned MI automatically). Sprint 6.3 (real ffmpeg image deploys; first end-to-end test). Sprint 7.x (KEDA queue-triggered scaling on this app; queue from Sprint 1.5).
+
 ## Budget alerts
 
 | Field | Value |
