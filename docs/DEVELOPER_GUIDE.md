@@ -180,6 +180,26 @@ The budget alert (Sprint 1.1 / 9.1) is **cost** observability — a separate con
 
 The SWA managed-functions API authenticates to Storage via a **connection string** (Managed Identity is unavailable on managed functions — platform-forced). The connection string lives in SWA app settings + GitHub Actions secrets, never in code. The Container App transcoder uses **Managed Identity** + RBAC role assignments. Split auth posture is intentional and recorded in D25; don't try to unify it without first moving to bring-your-own-functions.
 
+## Operational hazards (Azure portal quirks worth knowing)
+
+### Managed Identity ID surfaces (cross-reference for D25 debugging)
+
+Azure portal shows **two different IDs** for a managed identity depending on the blade you're looking at, both pointing at the **same Entra service principal**. This caused real confusion during Sprint 1.4 Phase B and is the kind of debugging-session-saving operational knowledge a future agent investigating *"why is the transcoder getting 403?"* needs to find here, not by digging through old portal-walkthrough guides.
+
+| ID type | Where shown | What it identifies |
+|---|---|---|
+| **Principal (Object) ID** | Container App → **Identity** blade | The actual security principal RBAC uses internally; this is what `az role assignment list --assignee` accepts |
+| **Application (Client) ID** | Storage account → **Access Control (IAM)** → Role assignments → "Object ID" column for managed identities | A separate Entra app identifier; the IAM column's header says "Object ID" but the value shown for MIs is actually the **App ID** |
+
+The two GUIDs DO NOT MATCH on visual comparison even though they identify the same identity. When debugging a 403 from the Container App against storage, **cross-check** by:
+1. Container App → Identity → copy **Object (principal) ID**
+2. Storage account → IAM → **Check access** tool → enter the Principal ID
+3. Confirm the expected roles (Storage Blob Data Contributor, Storage Table Data Contributor for the transcoder) appear
+
+If the Check Access tool shows the roles but runtime still 403s, the issue is elsewhere (RBAC propagation lag, wrong scope, etc.). If Check Access does NOT show the roles, the IAM role assignments are on a *different* identity than the live Container App — most likely a leftover from a cancelled Container App creation that left an orphaned service principal in Entra ID; remove the orphan-targeted assignments and re-add to the current Container App MI.
+
+Cross-reference: **D25** (this is operational debugging context for the auth posture D25 establishes).
+
 ## When you want to change an architectural decision
 
 1. Find it in `docs/DECISIONS.md`.

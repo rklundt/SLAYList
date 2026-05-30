@@ -61,6 +61,15 @@ Run each as a distinct perspective with its own checklist. For each, list concre
 - "Shared" never means public.
 - **No PII in logs (D32) — every sprint that adds log statements or telemetry.** Scan new log statements for: any field named or containing `ownerDisplayName`, `preferred_username`, `email`, `displayName`, or `title` (song titles contain kids' names). Any of these flowing to App Insights = **CRITICAL**. Acceptable substitutes: `ownerOid`, `songId`. For transcoder sprints, verify ffmpeg stderr is captured via the D32 mitigation (songId-based local filenames OR substitution before emit) — not raw stderr direct to App Insights.
 - **`raw-uploads` deletion check (D28) — every sprint that touches the storage account, lifecycle rules, or any "cleanup" job.** Any code, lifecycle rule, or scheduled task that *deletes* from `raw-uploads` = **CRITICAL**. Tier-transition lifecycle rules (Hot→Cool→Archive) are fine; deletion is forbidden. The kids' originals are canonical archive.
+- **D25 invariant on the transcoder Container App — every sprint that adds or edits Container App env vars, Secrets, or any other surface that could carry a storage credential.** The transcoder uses Managed Identity + RBAC, never a storage connection string (D25's "cleaner half" of the split-auth posture). Scan the Container App's configuration for any of these forbidden shapes; presence on the app's runtime config = **CRITICAL** D25 violation:
+  - `AzureWebJobsStorage` (any value)
+  - `STORAGE_CONNECTION_STRING*` (any value)
+  - Any var or secret containing `AccountKey=`
+  - Any var or secret containing `DefaultEndpointsProtocol=https;AccountName=stmusicslaylist...`
+
+  How to scan: portal blade Container App → Application → Containers → the container's Environment variables tab; AND Container App → Settings → Secrets (left nav may show under "Security" in newer portal versions). Both must be empty of the above shapes. CLI alternative: `az containerapp show -n ca-music-slaylist-dev-use2 -g rg-music-slaylist-dev-use2 --query 'properties.template.containers[].env'` + `az containerapp secret list -n ... -g ...`.
+
+  **Acceptable** (Azure-injected, not D25 violations): `CONTAINER_APP_NAME`, `CONTAINER_APP_REVISION`, `CONTAINER_APP_HOSTNAME`, any `CONTAINER_APP_*` system variable.
 - **Personal-machine local-path leak (every sprint that adds or edits committed content — files OR commit messages).** Scan for:
   - **Windows drive-letter paths:** `[A-Za-z]:\` or `[A-Za-z]:/` followed by a user/project-specific directory name (e.g., `C:\Users\<name>\...`, `C:\dev\<project>\...`, `D:\<anything>\<project>\...`).
   - **Unix user-home paths:** `/home/<name>/...`, `/Users/<name>/...`, `~/<project>/...`.
