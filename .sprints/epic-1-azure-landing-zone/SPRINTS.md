@@ -41,6 +41,30 @@ Acceptance: Container App environment exists (the app image comes in Epic 6); sc
 - As the owner, I want the dev Event Grid topic/subscription and the dev queue so blob events can later route to the transcoder.
 Acceptance: queue created (Storage Queue per DECISIONS D6); Event Grid ready to subscribe to blob-created events (wired in Epic 7).
 
+## Sprint 1.6 — IaC capture (Bicep) for the dev landing zone  **[Both]**
+
+*Added after Sprint 1.5's close-sprint review, in response to the operational question: "should we capture this as ARM/Bicep/Terraform so we can re-publish dev and derive prod?" Format chosen: **Bicep** — Microsoft's native DSL that compiles to ARM; clean syntax; first-class `az` CLI tooling; no state-file management overhead (Terraform's posture is over-engineered for our scale; we're Azure-only by design per D4/D24/D25/D26/D34). Capture timing chosen: now, before Epic 2 starts building infra-touching deploy pipelines, so the deploy pipeline can be designed with IaC as the source of truth from day one.*
+
+- As the owner, I want the Epic 1 dev resources captured as Bicep so dev can be rebuilt from code (disaster recovery), prod (Sprint 9.1) is a parameter-substitution deploy rather than another 5-sprint portal walkthrough, and future infra changes go through reviewable PRs instead of portal clicks.
+
+- As the owner, I want the Bicep templates to **not** carry secrets (connection strings, MI Principal IDs are deployment **outputs** from Azure, never inputs to the template) so D17 public-repo hygiene holds naturally and the existing gitignored `infra/dev-resources.md` discipline still applies to runtime credentials.
+
+- As the owner, I want the Bicep verified by **deploy-to-throwaway-RG + `az resource list` comparison** (same verify-don't-assume discipline as Sprint 1.1's AI ingestion / Sprint 1.3's storage diagnostics) so we know the template actually reconstructs the current dev state, not just "compiles clean."
+
+Acceptance:
+- Bicep modules under `infra/bicep/dev/` (per-resource-type split — e.g., `main.bicep`, `storage.bicep`, `containerapp.bicep`, `eventgrid.bicep`, `observability.bicep`) covering every Epic 1 dev resource: RG (or scoped-to-existing-RG), LAW, App Insights (workspace-based), $15/mo RG-scoped budget alert at $5/$12/$15 rungs, SWA on Free tier (Deployment source = Other; no auto-GitHub-workflow per D22 safeguard), Storage account with 3 containers (`raw-uploads`, `finished`, `table-backups`) + `Songs` table + 2 queues (`transcode-jobs`, `transcode-jobs-poison`) + 3 diagnostic settings (blob/table/queue → LAW) + 30d soft-delete + versioning, Container App Environment (Consumption profile, env-linked to LAW), Container App (placeholder image, Ingress Disabled, scale 0-1, system-assigned MI) + 2 storage RBAC role assignments (`Storage Blob Data Contributor` + `Storage Table Data Contributor`, scope = storage account), Event Grid system topic with system-assigned MI + 1 diagnostic setting (Delivery + Publish Failures + All Metrics → LAW).
+- Parameters: `env` (`dev`/`prod`), `region` (`use2`), `workload` (`music`), `app` (`slaylist`) — so Sprint 9.1 prod creation is `az deployment group create -p env=prod -p region=use2 -g rg-music-slaylist-prod-use2 -f main.bicep` and nothing else changes.
+- Outputs: connection-string-like values (storage account connection string, SWA deployment token, MI Principal IDs, Resource IDs) exposed as Bicep `output` blocks so consuming workflows can extract them without those values living in committed source. D17 hygiene unchanged.
+- **`bicep build` clean** on all modules (compiles to ARM without warnings).
+- **Validated end-to-end** by deploying to a throwaway RG (`rg-music-slaylist-iac-validate-use2` — or similar; explicitly NOT the live `rg-music-slaylist-dev-use2`) and confirming `az resource list -g <throwaway-rg>` shows the same resource shape as the existing dev RG. Throwaway RG deleted after verification; attestation captured in the gitignored `infra/dev-resources.md`.
+- **Naming convention `managed-by` tag retention:** Bicep declares `managed-by=bicep` for all resources it provisions (per `infra/naming-convention.md`'s contemplated alternative). The **existing live `rg-music-slaylist-dev-use2` resources retain `managed-by=manual`** at Sprint 1.6 — no migration of the existing dev to be IaC-managed in 1.6 scope; that migration is a separate sprint if/when wanted (the option is open; the Bicep templates work either way against a fresh RG vs. an existing one).
+- **Sprint 7.1's Event Grid subscription added to Bicep at Sprint 7.1** (not at 1.6) — keeps IaC in sync with the actual wiring sequence; 1.6 captures only what 1.5 finished creating.
+- **`docs/DECISIONS.md` D39** (or whatever next number is available) records: "Bicep chosen over ARM/Terraform for IaC; modules under `infra/bicep/dev/`; verify-don't-assume via throwaway-RG deploy at Sprint 1.6; secrets stay as outputs not inputs."
+
+Phase split:
+- **Phase A (agent):** write Bicep modules (decompile from `az group export` as a starting point, then refactor into clean per-resource modules); run `bicep build` to validate; write the operator walkthrough guide at `docs/guides/1.6-iac-capture-bicep.md` covering the throwaway-RG deploy + `az resource list` comparison + cleanup; add D39.
+- **Phase B (human):** `az deployment group create` to the throwaway RG; compare `az resource list` outputs; verify no secrets leaked into source; delete the throwaway RG; attest in gitignored notes.
+
 ---
 ### Reviewer focus (/wrap-sprint)
 - Infosec: deployment token / keys / **storage connection string (D25)** / **App Insights connection string (D24)** stored only as GitHub Actions secrets and in Azure config — never in repo; no public blob access on `finished` beyond what playback needs (revisit in Epic 8); Container App Managed Identity has only the two needed RBAC roles, not over-privileged (D25); RBAC least-privilege.
