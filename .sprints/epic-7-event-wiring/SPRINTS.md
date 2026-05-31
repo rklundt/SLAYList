@@ -10,7 +10,18 @@
 
 ## Sprint 7.1 — Blob-created → Event Grid → queue  **[Both, guided]**
 - As a developer, I want a raw-file landing to emit an event that lands a message on the queue.
-Acceptance: dropping a file in `raw-uploads` results in a queue message (Event Grid subscription validated/handshaked).
+
+Acceptance:
+- **Event subscription created** on the Event Grid system topic from Sprint 1.5 (`egst-music-slaylist-dev-use2`):
+  - Event-type filter: **`Microsoft.Storage.BlobCreated` only** (we don't care about deletes, updates, or other blob events for the transcode path).
+  - Subject filter: `Subject begins with /blobServices/default/containers/raw-uploads/` (so we ignore writes to `finished/` and `table-backups/`).
+  - Endpoint type: Storage Queue.
+  - Endpoint: `transcode-jobs` queue in `stmusicslaylistdevuse2` (from Sprint 1.5).
+  - Authentication: **system-assigned MI of the Event Grid system topic** (NOT a SAS token, NOT the storage account key — same D25 split-auth discipline applied to Event Grid as to the Container App at Sprint 1.4).
+- **`Storage Queue Data Message Sender` RBAC role assignment** added on `stmusicslaylistdevuse2`, assignee = Event Grid system topic's system-assigned MI, scope = the storage account. Without this, the subscription's MI auth fails and messages don't land on the queue. **Paired with the subscription creation above** — both land at 7.1, not 1.5, because they're meaningless in isolation.
+- **End-to-end verification** (the load-bearing acceptance — verify-don't-assume per D24/D34/D36/D37 and the Sprint 1.4 F2 deferral pattern): upload a tiny test blob to `raw-uploads` via `az storage blob upload --connection-string` (the *upload-test* auth via 1.3's captured connection string is fine; the *Container App's* future auth posture is what D25 protects from connection strings). **Use the naming pattern `_test-event-trigger-<YYYYMMDD-HHMMSS>.txt`** — leading underscore marks the blob as a system-internal verification artifact (not a kid's song), and the timestamp makes per-run blobs uniquely identifiable. This naming convention also makes the D28 carve-out unambiguous (per D28's Sprint-1.5-close implementation note: one-off operator-driven verification with clearly-marked test artifacts is NOT in scope of D28's automated-deletion prohibition) and lets `/wrap-sprint`'s D28 check whitelist the `_test-*` prefix explicitly. After upload, wait ~1–2 min for Event Grid delivery, then peek the `transcode-jobs` queue (`az storage message peek` or portal Queue blade) — confirm a message landed with the expected blob path in its payload. Delete the test message + test blob (same operator session). Record the verification outcome as a one-line note in `infra/dev-resources.md` (gitignored) — same attestation shape as Sprint 1.3's storage diagnostics verification.
+
+Dropping a file in `raw-uploads` results in a queue message (Event Grid subscription validated/handshaked).
 
 ## Sprint 7.2 — Container App scales from zero on queue; retry + dead-letter  **[Both]**
 - As the owner, I want the Container App to wake on a queue message, process, and on repeated failure dead-letter into the `failed` state — and idle back to zero.

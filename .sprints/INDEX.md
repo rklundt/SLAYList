@@ -43,8 +43,9 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 - ✅ 1.2 Dev Static Web App (Free tier per D26) — `swa-music-slaylist-dev-use2`, empty deploy target (Deployment source = `Other`, D22 safeguard verified); D37 (OIDC-primary deploy auth + break-glass token) added
 - ✅ 1.3 Dev storage account (blobs + table) — `stmusicslaylistdevuse2`; `raw-uploads`/`finished`/`table-backups` containers + `Songs` table; 30d soft-delete + versioning; **D28 invariant verified empty**; Storage Diagnostics → LAW wired and verified end-to-end; D38 (public-access posture) added
 - ✅ 1.4 Dev Container App environment + placeholder Container App — `cae-music-slaylist-dev-use2` hosting `ca-music-slaylist-dev-use2`; system-assigned MI + 2 storage RBAC roles per D25's cleaner half; **D25 invariant verified** (no connection string anywhere on the app); MI runtime verification deferred to Sprint 6.1 per D37-shape precedent
-- ⬜ 1.5 Dev Event Grid + queue
-- **Exit:** dev resources exist in portal. Not wired together.
+- ✅ 1.5 Dev Event Grid + queue — `egst-music-slaylist-dev-use2` system topic with MI + `transcode-jobs` + `transcode-jobs-poison` queues in `stmusicslaylistdevuse2`; D24 third storage-service feeder leg (`diag-queue-to-law-dev`) + fourth overall (`diag-egst-to-law-dev`); Sprint 7.1 acceptance expanded for subscription + RBAC + end-to-end verification (`_test-event-trigger-*` naming convention per D28 implementation note)
+- ⬜ 1.6 IaC capture (Bicep) — capture all Sprint 1.1–1.5 resources as Bicep modules so dev is rebuildable from code, prod (Sprint 9.1) is a parameter-substitution deploy, and future infra changes go through reviewable PRs. Validated by deploy-to-throwaway-RG + `az resource list` comparison. Secrets stay OUT (deployment outputs, not inputs).
+- **Exit:** dev resources exist in portal AND are captured as IaC; manual-portal scope ✅ at Sprint 1.5; IaC capture closes at Sprint 1.6.
 
 ### Epic 2 — Pipeline (dev, on the skeleton)
 - ⬜ 2.1 Deploy credentials + GitHub secrets
