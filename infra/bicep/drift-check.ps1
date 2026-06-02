@@ -26,8 +26,24 @@
   substitute for that discipline.
 
 .EXAMPLE
-  ./infra/bicep/drift-check.ps1 -NotificationEmail you@example.com
-  (defaults target the dev RG; pass -Env prod -ResourceGroup rg-...-prod-use2 for prod)
+  ./infra/bicep/drift-check.ps1
+  Zero-arg run against dev. The budget notification email is auto-detected from the live
+  budget, so nothing needs to be passed. Prints CLEAN or the DRIFT list.
+
+.EXAMPLE
+  ./infra/bicep/drift-check.ps1 -ShowNoise
+  Same as above, but also lists the filtered what-if noise (in gray) so you can audit that
+  the noise filter isn't masking something real.
+
+.EXAMPLE
+  ./infra/bicep/drift-check.ps1 -Env prod -ResourceGroup rg-music-slaylist-prod-use2 -BudgetStartDate 2026-09-01
+  Check prod (Sprint 9.1). For a brand-new env whose budget does not exist yet, also pass
+  -NotificationEmail (auto-detect needs an existing budget to read from).
+
+.NOTES
+  Read-only: runs `az deployment group what-if` only; never deploys or mutates anything.
+  Requires `az` logged into the target subscription. On Windows, if PowerShell's execution
+  policy blocks the script, run the sibling drift-check.bat wrapper instead.
 #>
 
 param(
@@ -108,6 +124,9 @@ $changes = ($raw | ConvertFrom-Json).changes
 $drift = [System.Collections.Generic.List[string]]::new()
 $noise = [System.Collections.Generic.List[string]]::new()
 
+# Renders one what-if delta as a single line: "<resource>  ::  <property path>  (<before> to <after>)".
+# Long before/after values (e.g. a reference() expression or a connection string) are truncated
+# to 40 chars so the output stays one line per delta.
 function Format-Delta($rid, $d) {
   $b = "$($d.before)"; if ($b.Length -gt 40) { $b = $b.Substring(0, 40) }
   $a = "$($d.after)"; if ($a.Length -gt 40) { $a = $a.Substring(0, 40) }
