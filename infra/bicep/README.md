@@ -17,8 +17,29 @@ infra/bicep/
 ├── swa.bicep           ← Static Web App (Free tier, repo-decoupled per D22 safeguard)
 ├── storage.bicep       ← Storage account + 3 containers + Songs table + 2 queues + 3 diagnostic settings
 ├── containerapp.bicep  ← CAE + Container App + system-assigned MI + 2 storage RBAC roles
-└── eventgrid.bicep     ← Event Grid system topic + system-assigned MI + diagnostic setting
+├── eventgrid.bicep     ← Event Grid system topic + system-assigned MI + diagnostic setting
+└── drift-check.ps1     ← read-only drift detector (what-if vs live, noise-filtered → CLEAN/DRIFT)
 ```
+
+## Drift detection
+
+Since Sprint 1.7 the live dev RG is `managed-by=bicep`. To check that the live environment
+still matches these templates (i.e. no one portal-clicked a change behind the IaC's back):
+
+```powershell
+./infra/bicep/drift-check.ps1 -NotificationEmail you@example.com
+```
+
+It runs `az deployment group what-if` (read-only — changes nothing), filters the perennial
+what-if noise (computed/read-only fields, unevaluatable `reference()` expressions), and prints
+**CLEAN** or the **DRIFT** items. Exit code 0 = clean, 1 = drift (so a future CI workflow can
+gate on it). For prod (Sprint 9.1): `-Env prod -ResourceGroup rg-music-slaylist-prod-use2 -BudgetStartDate <prod's start month>`.
+
+**Known limitation:** what-if reports array/reference-typed properties opaquely, so this does
+NOT detect changes to diagnostic-setting categories, the Container App image, or the CAE
+customerId. Those are covered by the "update the Bicep in the same sprint" discipline
+(CLAUDE.md guardrail) + code review. Automating this as a scheduled CI check is a backlog
+item for Epic 2 (needs the OIDC pipeline).
 
 The templates are **env-neutral** — there is no per-environment folder. The same files build dev, prod, or a throwaway validation RG; the environment is the `env` parameter (`dev`/`prod`/`validate`), not a directory. This is what makes prod (Sprint 9.1) a parameter substitution rather than a separate copy.
 
