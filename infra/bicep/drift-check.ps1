@@ -36,13 +36,33 @@ param(
   [string]$Region = 'use2',
   [string]$Workload = 'music',
   [string]$App = 'slaylist',
-  [Parameter(Mandatory = $true)][string]$NotificationEmail,
+  # Optional. The Bicep requires a notificationEmail param (the budget uses it), but what-if
+  # never sends anything. If omitted, it's auto-detected from the LIVE budget so it always
+  # matches (a mismatched email would otherwise show as false "drift" on the budget). Only pass
+  # it explicitly for a fresh env whose budget doesn't exist yet.
+  [string]$NotificationEmail,
   # The dev budget's immutable start month. Pass the target env's own budget start on redeploy.
   [string]$BudgetStartDate = '2026-05-01',
   [string]$TemplateFile = "$PSScriptRoot/main.bicep"
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Auto-detect the budget notification email from the live budget when not supplied, so it
+# always matches and never shows as false drift. Falls back to a clear error for a fresh env.
+if (-not $NotificationEmail) {
+  $budgetName = "budget-$Workload-$App-$Env"
+  $b = az consumption budget list --query "[?name=='$budgetName']" -o json --only-show-errors 2>$null | ConvertFrom-Json
+  if ($b) {
+    $firstNotif = $b[0].notifications.PSObject.Properties | Select-Object -First 1
+    $NotificationEmail = $firstNotif.Value.contactEmails[0]
+  }
+  if (-not $NotificationEmail) {
+    Write-Error "Could not auto-detect the notification email from budget '$budgetName' (does it exist?). Pass -NotificationEmail explicitly for a fresh environment."
+    exit 2
+  }
+  Write-Host "Notification email auto-detected from live budget '$budgetName'." -ForegroundColor DarkGray
+}
 
 # Leaf property names that what-if always surfaces but ARM never actually changes (or cannot
 # evaluate). Anything NOT in this set is treated as real drift. Keep this list tight - an
@@ -77,7 +97,7 @@ $raw = az deployment group what-if `
   --template-file $TemplateFile `
   --parameters env=$Env region=$Region workload=$Workload app=$App `
                notificationEmail=$NotificationEmail budgetStartDate=$BudgetStartDate `
-  --no-pretty-print 2>$null
+  --no-pretty-print --only-show-errors 2>$null
 
 if (-not $raw) { Write-Error "what-if produced no output. Check az login / subscription / params."; exit 2 }
 

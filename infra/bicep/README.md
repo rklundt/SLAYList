@@ -24,16 +24,20 @@ infra/bicep/
 ## Drift detection
 
 Since Sprint 1.7 the live dev RG is `managed-by=bicep`. To check that the live environment
-still matches these templates (i.e. no one portal-clicked a change behind the IaC's back):
+still matches these templates (i.e. no one portal-clicked a change behind the IaC's back),
+make sure `az` is logged into the right subscription, then run — **no arguments needed**:
 
 ```powershell
-./infra/bicep/drift-check.ps1 -NotificationEmail you@example.com
+./infra/bicep/drift-check.ps1
 ```
 
 It runs `az deployment group what-if` (read-only — changes nothing), filters the perennial
 what-if noise (computed/read-only fields, unevaluatable `reference()` expressions), and prints
-**CLEAN** or the **DRIFT** items. Exit code 0 = clean, 1 = drift (so a future CI workflow can
-gate on it). For prod (Sprint 9.1): `-Env prod -ResourceGroup rg-music-slaylist-prod-use2 -BudgetStartDate <prod's start month>`.
+**CLEAN** or the **DRIFT** items to the screen. Exit code 0 = clean, 1 = drift (so a future CI
+workflow can gate on it). The budget notification email is auto-detected from the live budget,
+so you don't supply it (it must match the live budget, or the budget would show as false drift).
+
+For prod (Sprint 9.1): `./infra/bicep/drift-check.ps1 -Env prod -ResourceGroup rg-music-slaylist-prod-use2 -BudgetStartDate <prod's budget start month>`.
 
 **Known limitation:** what-if reports array/reference-typed properties opaquely, so this does
 NOT detect changes to diagnostic-setting categories, the Container App image, or the CAE
