@@ -30,7 +30,7 @@ Everything in the dev RG as of the Sprint 1.5 merge:
 - Sprint 1.1: Log Analytics, App Insights, $5/$12/$15 budget alert rungs
 - Sprint 1.2: SWA Free with empty repo binding (D22 safeguard)
 - Sprint 1.3: Storage account, 3 containers (`raw-uploads`, `finished`, `table-backups`), Songs table, soft-delete + versioning, 3 diagnostic settings
-- Sprint 1.4: Container App Environment, Container App with system-assigned MI, 2 RBAC role assignments on storage (Blob Data Contributor + Queue Message Processor), CAE log streaming to LAW
+- Sprint 1.4: Container App Environment, Container App with system-assigned MI, 2 RBAC role assignments on storage (Blob Data Contributor + Table Data Contributor), CAE log streaming to LAW
 - Sprint 1.5: 2 queues (work + poison), Event Grid system topic with MI, EG diagnostic setting
 
 ## What this does NOT capture yet

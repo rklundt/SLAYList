@@ -3,12 +3,15 @@
 
 // Container App module — Container App Environment (LAW-linked per D24) + Container App
 // running the transcoder placeholder, with a system-assigned managed identity and two
-// RBAC role assignments scoped to the storage account (D25 runtime auth):
-//   - Storage Blob Data Contributor (read raw, write finished, write _test-artifacts)
-//   - Storage Queue Data Message Processor (dequeue work, enqueue poison on failure)
+// RBAC role assignments scoped to the storage account (D25 runtime auth), matching the
+// live dev MI as provisioned in Sprint 1.4:
+//   - Storage Blob Data Contributor  (read raw, write finished)
+//   - Storage Table Data Contributor (flip the Songs record to `ready` on completion)
 //
-// Sprint 6.1 will replace the placeholder image with the real transcoder; Sprint 7.1 will
-// add the Event Grid → queue subscription. RBAC is captured here so the MI is ready to use.
+// Sprint 6.1 replaces the placeholder image with the real transcoder; Epic 7 adds the
+// Event Grid → queue subscription AND the queue-data-plane RBAC the consumer needs
+// (Storage Queue Data Message Processor) — deliberately not captured here because the live
+// dev MI does not carry it yet. RBAC is captured so the MI is ready for blob/table work.
 
 @description('Azure region (full name).')
 param location string
@@ -121,18 +124,26 @@ resource blobDataContributorAssignment 'Microsoft.Authorization/roleAssignments@
   }
 }
 
-// --- RBAC: Storage Queue Data Message Processor on the storage account ---
-// Built-in role ID: 8a0f0c08-91a1-4084-bc3d-661d67233fed
-var queueMessageProcessorRoleId = subscriptionResourceId(
+// --- RBAC: Storage Table Data Contributor on the storage account ---
+// Built-in role ID: 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3
+// Matches the live dev Container App MI (Sprint 1.4): the transcoder updates the Songs
+// table record to `ready` on completion, so it needs table data-plane write access.
+//
+// NOTE (Epic 7 forward question): the transcoder will ALSO need to dequeue/delete messages
+// from the work queue (and write to the poison queue), which requires Storage Queue Data
+// Message Processor. That role is intentionally NOT assigned here because the live dev MI
+// does not have it today — the queue trigger + its RBAC are wired in Epic 7, not captured at
+// Sprint 1.6. Add the queue role to this module when Epic 7 provisions the queue consumer.
+var tableDataContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  '8a0f0c08-91a1-4084-bc3d-661d67233fed'
+  '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 )
 
-resource queueMessageProcessorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource tableDataContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: storageRef
-  name: guid(storageRef.id, containerApp.id, queueMessageProcessorRoleId)
+  name: guid(storageRef.id, containerApp.id, tableDataContributorRoleId)
   properties: {
-    roleDefinitionId: queueMessageProcessorRoleId
+    roleDefinitionId: tableDataContributorRoleId
     principalId: containerApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
