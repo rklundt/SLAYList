@@ -70,6 +70,7 @@ A private, login-gated family music library. Kids upload songs they made, play t
 - **Static Web App: use its built-in environments** (production vs. staging) — designed for this.
 - **Container App: two separate apps** (dev + prod), not channels in one. Scale-to-zero makes two ≈ the cost of one.
 - Branches: `develop` deploys to dev, `main` deploys to prod. Human gates both merges.
+- **Infrastructure as code (D39):** the landing zone is captured as **env-neutral Bicep** under `infra/bicep/` (modules orchestrated by `main.bicep`). There is no per-environment folder — the environment is the `env` parameter (`dev`/`prod`/`validate`), so prod (Sprint 9.1) is the same templates with `env=prod`, not a separate copy. This is what keeps the "same shape, separate accounts" promise honest. Every infra change updates the Bicep in the same sprint; portal-only drift is forbidden (see CLAUDE.md guardrail).
 
 ## Data model (song record)
 
