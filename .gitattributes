@@ -1,0 +1,11 @@
+# Line-ending policy for tooling that is whitespace/EOL-sensitive.
+# Without these, a contributor whose git core.autocrlf differs can check out a file
+# with the wrong line endings and break it.
+
+# Windows batch files MUST be CRLF or cmd.exe mis-parses them (e.g. infra/bicep/drift-check.bat
+# emits "'M' is not recognized" on each REM line when checked out as LF).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts MUST be LF or bash chokes on the trailing CR.
+*.sh  text eol=lf

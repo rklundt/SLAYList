@@ -18,7 +18,8 @@ infra/bicep/
 ├── storage.bicep       ← Storage account + 3 containers + Songs table + 2 queues + 3 diagnostic settings
 ├── containerapp.bicep  ← CAE + Container App + system-assigned MI + 2 storage RBAC roles
 ├── eventgrid.bicep     ← Event Grid system topic + system-assigned MI + diagnostic setting
-└── drift-check.ps1     ← read-only drift detector (what-if vs live, noise-filtered → CLEAN/DRIFT)
+├── drift-check.ps1     ← read-only drift detector (what-if vs live, noise-filtered → CLEAN/DRIFT)
+└── drift-check.bat     ← wrapper that runs the .ps1 with -ExecutionPolicy Bypass (no policy change)
 ```
 
 ## Drift detection
@@ -29,6 +30,15 @@ make sure `az` is logged into the right subscription, then run — **no argument
 
 ```powershell
 ./infra/bicep/drift-check.ps1
+```
+
+If PowerShell blocks it with *"running scripts is disabled on this system"* (the default
+execution policy), either set the policy once — `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+— or just use the **`.bat` wrapper**, which bypasses the policy for that single call with no
+machine change:
+
+```
+infra\bicep\drift-check.bat
 ```
 
 It runs `az deployment group what-if` (read-only — changes nothing), filters the perennial
