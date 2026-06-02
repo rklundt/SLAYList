@@ -56,11 +56,13 @@ add **`-ShowNoise`** — it lists every ignored delta in gray before the verdict
 ./infra/bicep/drift-check.ps1 -ShowNoise
 ```
 
-**Known limitation:** what-if reports array/reference-typed properties opaquely, so this does
-NOT detect changes to diagnostic-setting categories, the Container App image, or the CAE
-customerId. Those are covered by the "update the Bicep in the same sprint" discipline
-(CLAUDE.md guardrail) + code review. Automating this as a scheduled CI check is a backlog
-item for Epic 2 (needs the OIDC pipeline).
+**Known limitation (now surfaced, not silent):** what-if can't diff array/reference-typed
+properties, so the check can't itself verify the **Container App image/resources/env** or the
+**diagnostic-setting categories**. Rather than ignore them, it prints an always-on **REVIEW**
+note listing them, so a `CLEAN` verdict never implies "everything checked." Confirm those by eye
+if you changed them; the real guard is the "update the Bicep in the same sprint" discipline
+(CLAUDE.md guardrail) + code review. Automating the whole check as a scheduled CI job is a
+backlog item for Epic 2 (needs the OIDC pipeline).
 
 The templates are **env-neutral** — there is no per-environment folder. The same files build dev, prod, or a throwaway validation RG; the environment is the `env` parameter (`dev`/`prod`/`validate`), not a directory. This is what makes prod (Sprint 9.1) a parameter substitution rather than a separate copy.
 

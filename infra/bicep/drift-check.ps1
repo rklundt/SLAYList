@@ -12,18 +12,24 @@
     - DRIFT  a resource the templates would CREATE (missing from live), or a MODIFY on a
              meaningful scalar property (SKU, retention, network access, public access,
              soft-delete, tags you did not intend, etc.). These are what you act on.
+    - REVIEW properties what-if reports OPAQUELY (it can't diff them) where a real change could
+             hide: the Container App template (image, cpu/mem, env) and diagnostic-setting
+             log/metric categories. NOT counted as drift, but ALWAYS surfaced as a REVIEW note
+             so the check never silently misses them - confirm those by eye if you changed them.
     - noise  computed/read-only/platform-default fields that what-if always shows but ARM
              never actually changes (stableInboundIP, runningStatus, encryption-scope
-             defaults, etc.), plus budget date-format normalization. Silently ignored.
+             defaults, reference() expressions that resolve to the same value, etc.), plus
+             budget date-format normalization. Silently ignored (shown only with -ShowNoise).
 
-  Exit code 0 = CLEAN, 1 = DRIFT detected (so this can gate a future CI workflow), 2 = error.
+  Exit code 0 = CLEAN (no drift; REVIEW items don't fail it), 1 = DRIFT detected (so this can
+  gate a future CI workflow), 2 = error.
 
-  LIMITATION (read this): what-if reports array- and reference-typed properties opaquely - it
-  canNOT diff diagnostic-setting log/metric CATEGORIES, the Container App CONTAINER IMAGE, or
-  the CAE Log-Analytics customerId. This script therefore does NOT detect changes to those.
-  For those, rely on the "update the Bicep in the same sprint" discipline (CLAUDE.md guardrail)
-  and code review. This tool catches the high-blast-radius scalar drift; it is not a complete
-  substitute for that discipline.
+  LIMITATION: what-if cannot diff array/reference-typed properties, so this check cannot itself
+  verify the Container App image/resources/env or the diagnostic-setting categories - it flags
+  them in the REVIEW note rather than vouching for them. The real guard for those is the
+  "update the Bicep in the same sprint" discipline (CLAUDE.md guardrail) + code review. This
+  tool catches high-blast-radius scalar drift (SKU, retention, network/public access, RBAC
+  presence, tags); it is not a complete substitute for that discipline.
 
 .EXAMPLE
   ./infra/bicep/drift-check.ps1
@@ -89,8 +95,10 @@ if (-not $NotificationEmail) {
 $NoiseLeaves = @(
   # tags the templates re-assert (already correct after the Sprint 1.7 reconcile)
   'managed-by', 'region', 'cost-center',
-  # SWA computed / read-only
-  'stableInboundIP', 'trafficSplitting', 'deploymentAuthPolicy',
+  # SWA computed / read-only. (deploymentAuthPolicy is deliberately NOT here: we pin it in
+  # Bicep, so post-reconcile it matches and never appears; if it ever shows up in what-if again
+  # that's a real portal change we WANT surfaced as drift.)
+  'stableInboundIP', 'trafficSplitting',
   # Container App computed / default-applied
   'runningStatus', 'maxInactiveRevisions',
   # Container Apps Environment default sub-objects + unevaluatable reference()
@@ -104,10 +112,16 @@ $NoiseLeaves = @(
   # LAW features (what-if marks NoEffect)
   'features',
   # budget date fields (immutable / format-normalized) + decoupled action-group ref
-  'endDate', 'startDate', 'contactGroups',
-  # array-typed props what-if reports opaquely (see LIMITATION above)
-  'logs', 'metrics', 'containers'
+  'endDate', 'startDate', 'contactGroups'
 )
+
+# Leaves that what-if reports OPAQUELY (it can't actually diff them), where a real change COULD
+# hide: the Container App template array (image, cpu/mem, env vars) and diagnostic-setting log/
+# metric category arrays. These are NOT silently ignored like $NoiseLeaves — they're surfaced
+# as an always-shown REVIEW note so the check never silently misses a container-image or
+# diag-category change. They do NOT count as drift (they'd appear on every run), but they tell
+# you "this tool can't see these; confirm them yourself or via the same-sprint Bicep discipline."
+$ReviewLeaves = @('containers', 'logs', 'metrics')
 
 Write-Host "Running what-if against $ResourceGroup (read-only)..." -ForegroundColor Cyan
 
@@ -123,6 +137,7 @@ if (-not $raw) { Write-Error "what-if produced no output. Check az login / subsc
 $changes = ($raw | ConvertFrom-Json).changes
 $drift = [System.Collections.Generic.List[string]]::new()
 $noise = [System.Collections.Generic.List[string]]::new()
+$review = [System.Collections.Generic.List[string]]::new()
 
 # Renders one what-if delta as a single line: "<resource>  ::  <property path>  (<before> to <after>)".
 # Long before/after values (e.g. a reference() expression or a connection string) are truncated
@@ -148,7 +163,10 @@ foreach ($c in $changes) {
         $leaf = ($d.path -split '\.')[-1]
         # the whole-object 'properties' delete on queueServices is legacy classic-logging noise
         if ($d.path -eq 'properties' -and $rid -like '*queueServices*') { $noise.Add("MODIFY  $(Format-Delta $rid $d)"); continue }
-        if ($NoiseLeaves -notcontains $leaf) {
+        if ($ReviewLeaves -contains $leaf) {
+          $review.Add("MODIFY  $(Format-Delta $rid $d)")
+        }
+        elseif ($NoiseLeaves -notcontains $leaf) {
           $drift.Add("MODIFY  $(Format-Delta $rid $d)")
         }
         else {
@@ -163,6 +181,16 @@ if ($ShowNoise -and $noise.Count -gt 0) {
   Write-Host ""
   Write-Host "Filtered noise ($($noise.Count) item(s) - computed/read-only/unevaluatable, NOT drift):" -ForegroundColor DarkGray
   $noise | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+}
+
+# REVIEW is ALWAYS shown (not gated on -ShowNoise): what-if can't diff these, so the check can't
+# vouch for them. This is the one thing the tool genuinely can't see, so it must say so every run.
+if ($review.Count -gt 0) {
+  Write-Host ""
+  Write-Host "REVIEW ($($review.Count)): what-if cannot diff these, so this check does NOT cover them -" -ForegroundColor Magenta
+  Write-Host "  the Container App image/resources/env and diagnostic-setting categories. Confirm those" -ForegroundColor Magenta
+  Write-Host "  manually if you changed them (the same-sprint Bicep discipline is the real guard)." -ForegroundColor Magenta
+  if ($ShowNoise) { $review | ForEach-Object { Write-Host "  $_" -ForegroundColor Magenta } }
 }
 
 Write-Host ""
