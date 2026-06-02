@@ -49,6 +49,13 @@ so you don't supply it (it must match the live budget, or the budget would show 
 
 For prod (Sprint 9.1): `./infra/bicep/drift-check.ps1 -Env prod -ResourceGroup rg-music-slaylist-prod-use2 -BudgetStartDate <prod's budget start month>`.
 
+To audit what the check filters out (confirm the noise filter isn't hiding something real),
+add **`-ShowNoise`** — it lists every ignored delta in gray before the verdict:
+
+```powershell
+./infra/bicep/drift-check.ps1 -ShowNoise
+```
+
 **Known limitation:** what-if reports array/reference-typed properties opaquely, so this does
 NOT detect changes to diagnostic-setting categories, the Container App image, or the CAE
 customerId. Those are covered by the "update the Bicep in the same sprint" discipline

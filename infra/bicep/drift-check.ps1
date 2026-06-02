@@ -43,7 +43,10 @@ param(
   [string]$NotificationEmail,
   # The dev budget's immutable start month. Pass the target env's own budget start on redeploy.
   [string]$BudgetStartDate = '2026-05-01',
-  [string]$TemplateFile = "$PSScriptRoot/main.bicep"
+  [string]$TemplateFile = "$PSScriptRoot/main.bicep",
+  # Also print the filtered what-if noise (computed/read-only/unevaluatable deltas the check
+  # ignores) under a separate heading, for auditing that the filter isn't hiding real drift.
+  [switch]$ShowNoise
 )
 
 $ErrorActionPreference = 'Stop'
@@ -103,10 +106,18 @@ if (-not $raw) { Write-Error "what-if produced no output. Check az login / subsc
 
 $changes = ($raw | ConvertFrom-Json).changes
 $drift = [System.Collections.Generic.List[string]]::new()
+$noise = [System.Collections.Generic.List[string]]::new()
+
+function Format-Delta($rid, $d) {
+  $b = "$($d.before)"; if ($b.Length -gt 40) { $b = $b.Substring(0, 40) }
+  $a = "$($d.after)"; if ($a.Length -gt 40) { $a = $a.Substring(0, 40) }
+  return "$rid  ::  $($d.path)  ($b to $a)"
+}
 
 foreach ($c in $changes) {
   $rid = ($c.resourceId -split '/providers/')[-1]
   switch ($c.changeType) {
+    'Ignore' { $noise.Add("IGNORE  $rid  (resource not managed by these templates)") }
     'Create' {
       # Role-assignment creates were the only expected Creates, and only BEFORE the reconcile.
       # After Sprint 1.7 they exist with deterministic GUIDs, so any Create now means a managed
@@ -117,15 +128,22 @@ foreach ($c in $changes) {
       foreach ($d in $c.delta) {
         $leaf = ($d.path -split '\.')[-1]
         # the whole-object 'properties' delete on queueServices is legacy classic-logging noise
-        if ($d.path -eq 'properties' -and $rid -like '*queueServices*') { continue }
+        if ($d.path -eq 'properties' -and $rid -like '*queueServices*') { $noise.Add("MODIFY  $(Format-Delta $rid $d)"); continue }
         if ($NoiseLeaves -notcontains $leaf) {
-          $b = "$($d.before)"; if ($b.Length -gt 40) { $b = $b.Substring(0, 40) }
-          $a = "$($d.after)"; if ($a.Length -gt 40) { $a = $a.Substring(0, 40) }
-          $drift.Add("MODIFY  $rid  ::  $($d.path)  ($b to $a)")
+          $drift.Add("MODIFY  $(Format-Delta $rid $d)")
+        }
+        else {
+          $noise.Add("MODIFY  $(Format-Delta $rid $d)")
         }
       }
     }
   }
+}
+
+if ($ShowNoise -and $noise.Count -gt 0) {
+  Write-Host ""
+  Write-Host "Filtered noise ($($noise.Count) item(s) - computed/read-only/unevaluatable, NOT drift):" -ForegroundColor DarkGray
+  $noise | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
 }
 
 Write-Host ""
