@@ -17,8 +17,52 @@ infra/bicep/
 ├── swa.bicep           ← Static Web App (Free tier, repo-decoupled per D22 safeguard)
 ├── storage.bicep       ← Storage account + 3 containers + Songs table + 2 queues + 3 diagnostic settings
 ├── containerapp.bicep  ← CAE + Container App + system-assigned MI + 2 storage RBAC roles
-└── eventgrid.bicep     ← Event Grid system topic + system-assigned MI + diagnostic setting
+├── eventgrid.bicep     ← Event Grid system topic + system-assigned MI + diagnostic setting
+├── drift-check.ps1     ← read-only drift detector (what-if vs live, noise-filtered → CLEAN/DRIFT)
+└── drift-check.bat     ← wrapper that runs the .ps1 with -ExecutionPolicy Bypass (no policy change)
 ```
+
+## Drift detection
+
+Since Sprint 1.7 the live dev RG is `managed-by=bicep`. To check that the live environment
+still matches these templates (i.e. no one portal-clicked a change behind the IaC's back),
+make sure `az` is logged into the right subscription, then run — **no arguments needed**:
+
+```powershell
+./infra/bicep/drift-check.ps1
+```
+
+If PowerShell blocks it with *"running scripts is disabled on this system"* (the default
+execution policy), either set the policy once — `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+— or just use the **`.bat` wrapper**, which bypasses the policy for that single call with no
+machine change:
+
+```
+infra\bicep\drift-check.bat
+```
+
+It runs `az deployment group what-if` (read-only — changes nothing), filters the perennial
+what-if noise (computed/read-only fields, unevaluatable `reference()` expressions), and prints
+**CLEAN** or the **DRIFT** items to the screen. Exit code 0 = clean, 1 = drift (so a future CI
+workflow can gate on it). The budget notification email is auto-detected from the live budget,
+so you don't supply it (it must match the live budget, or the budget would show as false drift).
+
+For prod (Sprint 9.1): `./infra/bicep/drift-check.ps1 -Env prod -ResourceGroup rg-music-slaylist-prod-use2 -BudgetStartDate <prod's budget start month>`.
+
+To audit what the check filters out (confirm the noise filter isn't hiding something real),
+add **`-ShowNoise`** — it lists every ignored delta in gray before the verdict:
+
+```powershell
+./infra/bicep/drift-check.ps1 -ShowNoise
+```
+
+**Known limitation (now surfaced, not silent):** what-if can't diff array/reference-typed
+properties, so the check can't itself verify the **Container App image/resources/env** or the
+**diagnostic-setting categories**. Rather than ignore them, it prints an always-on **REVIEW**
+note listing them, so a `CLEAN` verdict never implies "everything checked." Confirm those by eye
+if you changed them; the real guard is the "update the Bicep in the same sprint" discipline
+(CLAUDE.md guardrail) + code review. Automating the whole check as a scheduled CI job is a
+backlog item for Epic 2 (needs the OIDC pipeline).
 
 The templates are **env-neutral** — there is no per-environment folder. The same files build dev, prod, or a throwaway validation RG; the environment is the `env` parameter (`dev`/`prod`/`validate`), not a directory. This is what makes prod (Sprint 9.1) a parameter substitution rather than a separate copy.
 
