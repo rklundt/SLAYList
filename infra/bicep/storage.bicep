@@ -127,6 +127,16 @@ resource transcodePoisonQueue 'Microsoft.Storage/storageAccounts/queueServices/q
 // --- Diagnostic settings: three feeder legs into LAW per D24 ---
 // Scope is the *service* sub-resource, not the storage account; that's the only way
 // to get StorageRead/StorageWrite/StorageDelete logs per service.
+//
+// D40: the StorageRead/Write/Delete log categories are kept ON deliberately (interim posture).
+// They record object keys, and blob names embed title-slugs (a D32 PII surface), but LAW is
+// family-admin-scoped (inside the trust boundary) and the audit value is real. The PERMANENT
+// fix is owned by Sprint 5.2 (the Sprint 1.3 Finding F2 backlog item): change the blob filename
+// to {shortid}_{timestamp} with the title in blob metadata, so the slug leaves the object key
+// at the source and these logs can stay ON without leaking PII. Do not trim these to
+// metrics-only without re-reading D40 — that's only the emergency fallback if a trigger fires
+// before Sprint 5.2. Hard rule: no real upload ships (Epic 5) with categories ON and the slug
+// still in the object key.
 resource diagBlob 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   scope: blobService
   name: diagBlobName

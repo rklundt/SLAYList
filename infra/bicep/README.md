@@ -11,17 +11,16 @@ Bicep templates that capture the dev landing zone (Epic 1) and will redeploy as 
 ```
 infra/bicep/
 ├── README.md           ← this file
-└── dev/                ← the dev landing zone; also used for prod via `env=prod`
-    ├── main.bicep      ← orchestrator — deploy this; takes env/region/workload/app/notificationEmail
-    ├── naming.bicep    ← name-generator; single source of truth for the CAF naming pattern
-    ├── observability.bicep   ← LAW + App Insights + budget alert
-    ├── swa.bicep       ← Static Web App (Free tier, repo-decoupled per D22 safeguard)
-    ├── storage.bicep   ← Storage account + 3 containers + Songs table + 2 queues + 3 diagnostic settings
-    ├── containerapp.bicep    ← CAE + Container App + system-assigned MI + 2 storage RBAC roles
-    └── eventgrid.bicep ← Event Grid system topic + system-assigned MI + diagnostic setting
+├── main.bicep          ← orchestrator — deploy this; takes env/region/workload/app/notificationEmail
+├── naming.bicep        ← name-generator; single source of truth for the CAF naming pattern
+├── observability.bicep ← LAW + App Insights + budget alert
+├── swa.bicep           ← Static Web App (Free tier, repo-decoupled per D22 safeguard)
+├── storage.bicep       ← Storage account + 3 containers + Songs table + 2 queues + 3 diagnostic settings
+├── containerapp.bicep  ← CAE + Container App + system-assigned MI + 2 storage RBAC roles
+└── eventgrid.bicep     ← Event Grid system topic + system-assigned MI + diagnostic setting
 ```
 
-`dev/` is named after the original capture target, not the deployment target. Prod uses the same files; the directory name is historical and renaming it later would be churn for no benefit.
+The templates are **env-neutral** — there is no per-environment folder. The same files build dev, prod, or a throwaway validation RG; the environment is the `env` parameter (`dev`/`prod`/`validate`), not a directory. This is what makes prod (Sprint 9.1) a parameter substitution rather than a separate copy.
 
 ## What this captures (Sprint 1.6 baseline)
 

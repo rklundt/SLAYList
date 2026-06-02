@@ -6,7 +6,7 @@
 // Deploy:
 //   az deployment group create \
 //     -g rg-<workload>-<app>-<env>-<region> \
-//     --template-file infra/bicep/dev/main.bicep \
+//     --template-file infra/bicep/main.bicep \
 //     -p env=<dev|prod|validate> \
 //     -p region=<use2> \
 //     -p workload=<workload> \
@@ -23,7 +23,7 @@ targetScope = 'resourceGroup'
 @description('Environment slug — dev, prod, or validate.')
 param env string
 
-@description('Region code — use2 (East US 2).')
+@description('Region code — use2 (East US 2). Must be a key in the regionToLocation map below; the physical Azure location is derived from it so the name and the deployed region can never diverge.')
 param region string = 'use2'
 
 @description('Workload slug.')
@@ -41,8 +41,14 @@ param budgetAmountUsd int = 15
 @description('Container image reference for the transcoder. Defaults to the same public placeholder the live dev Container App runs (Sprint 1.4). Sprint 6.1 swaps in the real transcoder image.')
 param containerAppImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
-@description('Azure region full name (resolved from region code). Override only if region != use2.')
-param location string = 'eastus2'
+// Physical Azure location is DERIVED from the region code, never passed independently —
+// this makes it impossible to deploy resources named `...-usw2` into East US 2 by forgetting
+// to also change a separate location param. Adding a new region is a deliberate code change:
+// add its key here (and the deploy fails fast with a clear error if an unmapped region is passed).
+var regionToLocation = {
+  use2: 'eastus2'
+}
+var location = regionToLocation[region]
 
 @description('Budget start date, ISO 8601 first-of-month. Defaults to the first of the current UTC month at deploy time so Azure Consumption never rejects a past-month start. Override only if reproducing a specific historical budget identity.')
 param budgetStartDate string = utcNow('yyyy-MM-01')

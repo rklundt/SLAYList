@@ -26,7 +26,7 @@ param budgetAmountUsd int = 15
 @description('Email address for budget alert notifications. Pass at deploy time — never committed.')
 param notificationEmail string
 
-@description('Budget start date (ISO 8601, first-of-month, e.g. 2026-06-01). Azure Consumption requires monthly budgets to start in the current month or later. Computed at the top-level template via utcNow() and passed in here.')
+@description('Budget start date (ISO 8601, first-of-month, e.g. 2026-06-01). Azure Consumption requires monthly budgets to start in the current month or later, AND treats startDate as immutable once the budget exists. The top-level template defaults this to utcNow(yyyy-MM-01) so a FIRST deploy always succeeds. On any REDEPLOY of an already-existing budget, pass the budget’s ORIGINAL start month explicitly (e.g. budgetStartDate=2026-05-01 for the live dev budget) or the deploy fails with an immutable-property error. See D39 + docs/guides/1.6-iac-capture-bicep.md.')
 param budgetStartDate string
 
 // Log Analytics workspace — backs the workspace-based App Insights
@@ -112,10 +112,12 @@ resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
   }
 }
 
-// Outputs consumed by downstream modules
+// Outputs consumed by downstream modules. Non-sensitive only (D39 secrets posture).
+// The App Insights connection string is intentionally NOT output: the placeholder Container
+// App carries no env vars today (Sprint 1.4 / Sprint 6.1 adds real telemetry wiring), so an
+// output would be dead surface. When Sprint 6.1 wires the transcoder's telemetry, it reads the
+// connection string via `az`/app config at that point, not from a template output.
 output lawId string = law.id
 output lawName string = law.name
 output appInsightsId string = appInsights.id
 output appInsightsName string = appInsights.name
-// AI connection string is non-secret (telemetry-write-only); safe to output for reference
-output appInsightsConnectionString string = appInsights.properties.ConnectionString
