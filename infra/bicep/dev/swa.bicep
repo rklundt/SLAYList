@@ -33,6 +33,14 @@ resource swa 'Microsoft.Web/staticSites@2024-04-01' = {
     allowConfigFileUpdates: true
     stagingEnvironmentPolicy: 'Enabled'
     provider: 'None' // Explicit: no source-control integration
+    // Pin the deployment auth policy to match the live dev SWA and preserve D37's
+    // break-glass deployment-token path. Omitting it lets ARM imply a default and
+    // produces a spurious what-if "delete" line; pinning keeps dev/prod reconcile clean.
+    // Bicep 0.43.8's staticSites type does not yet list this (real, GA) ARM property, so
+    // it warns BCP037 and passes the value through to ARM unchanged (verified: the deployed
+    // SWA reports deploymentAuthPolicy=DeploymentToken). Suppress the type-lag warning.
+    #disable-next-line BCP037
+    deploymentAuthPolicy: 'DeploymentToken'
   }
 }
 

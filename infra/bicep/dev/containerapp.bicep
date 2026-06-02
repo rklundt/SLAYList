@@ -22,17 +22,14 @@ param caeName string
 @description('Container App name (from naming module).')
 param caName string
 
-@description('Container image reference. Defaults to a public placeholder until Sprint 6.1 ships the real transcoder image.')
-param containerAppImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+@description('Container image reference. Defaults to the same public placeholder the live dev Container App runs (Sprint 1.4). Sprint 6.1 swaps in the real transcoder image via this parameter.')
+param containerAppImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
 @description('Storage account name — for RBAC scope (same RG as this deployment).')
 param storageName string
 
 @description('Log Analytics workspace name — for CAE log-ingestion key lookup (same RG).')
 param lawName string
-
-@description('Application Insights connection string for telemetry plumbing (non-secret per AI semantics).')
-param appInsightsConnectionString string
 
 // Same-RG existing-resource lookups (CAE needs LAW's customerId + sharedKey explicitly;
 // RBAC needs storage as the scope target).
@@ -93,20 +90,15 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.25')
             memory: '0.5Gi'
           }
-          env: [
-            {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              value: appInsightsConnectionString
-            }
-            // No storage connection string here per D25: runtime auth is MI + RBAC,
-            // not shared-key. The MI is wired via `identity` above; consuming code
-            // uses DefaultAzureCredential / ManagedIdentityCredential.
-          ]
+          // No env vars on the placeholder — matches the live dev Container App (Sprint 1.4).
+          // Runtime auth is MI + RBAC per D25 (no storage connection string here). Sprint 6.1
+          // adds the real transcoder's env wiring (App Insights connection string, queue name,
+          // etc.) when there's an actual workload that needs it.
         }
       ]
       scale: {
         minReplicas: 0 // scale-to-zero per Sprint 1.4
-        maxReplicas: 3 // Sprint 1.4 chose 3 as a tight cap
+        maxReplicas: 1 // matches live dev (Sprint 1.4); raise only with measured need
       }
     }
   }

@@ -38,11 +38,17 @@ param notificationEmail string
 @description('Budget amount in USD per month.')
 param budgetAmountUsd int = 15
 
-@description('Container image reference for the transcoder. Defaults to a public placeholder.')
-param containerAppImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
+@description('Container image reference for the transcoder. Defaults to the same public placeholder the live dev Container App runs (Sprint 1.4). Sprint 6.1 swaps in the real transcoder image.')
+param containerAppImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
 @description('Azure region full name (resolved from region code). Override only if region != use2.')
 param location string = 'eastus2'
+
+@description('Budget start date, ISO 8601 first-of-month. Defaults to the first of the current UTC month at deploy time so Azure Consumption never rejects a past-month start. Override only if reproducing a specific historical budget identity.')
+param budgetStartDate string = utcNow('yyyy-MM-01')
+
+@description('Cost-center tag value, used for cost attribution at subscription level. Defaults to `personal` (the SLAYList project shares a personal-use Azure sub with other personal workloads).')
+param costCenter string = 'personal'
 
 // Common tag set per `infra/naming-convention.md`
 var tags = {
@@ -50,6 +56,7 @@ var tags = {
   app: app
   env: env
   region: region
+  'cost-center': costCenter
   'managed-by': 'bicep'
 }
 
@@ -75,6 +82,7 @@ module observability 'observability.bicep' = {
     budgetName: names.outputs.budgetName
     budgetAmountUsd: budgetAmountUsd
     notificationEmail: notificationEmail
+    budgetStartDate: budgetStartDate
   }
 }
 
@@ -113,7 +121,6 @@ module containerApp 'containerapp.bicep' = {
     lawName: observability.outputs.lawName
     containerAppImage: containerAppImage
     storageName: storage.outputs.storageName
-    appInsightsConnectionString: observability.outputs.appInsightsConnectionString
   }
 }
 

@@ -46,17 +46,12 @@ resource diagEgst 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: diagEgstName
   properties: {
     workspaceId: lawId
+    // System topics (sourced from Azure resources directly) support only DeliveryFailures —
+    // PublishFailures + DataPlaneRequests are custom-topic-only categories. Verified against
+    // dev's actual diag setting via `az monitor diagnostic-settings categories list`.
     logs: [
       {
         category: 'DeliveryFailures'
-        enabled: true
-      }
-      {
-        category: 'PublishFailures'
-        enabled: true
-      }
-      {
-        category: 'DataPlaneRequests'
         enabled: true
       }
     ]

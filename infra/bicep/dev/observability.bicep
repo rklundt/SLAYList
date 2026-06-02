@@ -26,8 +26,8 @@ param budgetAmountUsd int = 15
 @description('Email address for budget alert notifications. Pass at deploy time — never committed.')
 param notificationEmail string
 
-@description('Budget start date (ISO 8601, first-of-month). Must not be in the past after the first deployment; defaults to a fixed date to keep redeploys idempotent.')
-param budgetStartDate string = '2025-01-01T00:00:00Z'
+@description('Budget start date (ISO 8601, first-of-month, e.g. 2026-06-01). Azure Consumption requires monthly budgets to start in the current month or later. Computed at the top-level template via utcNow() and passed in here.')
+param budgetStartDate string
 
 // Log Analytics workspace — backs the workspace-based App Insights
 resource law 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
@@ -74,8 +74,11 @@ resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
     timeGrain: 'Monthly'
     amount: budgetAmountUsd
     category: 'Cost'
+    // Notification keys use Azure's portal-generated naming (actual_GreaterThan_<n>_Percent)
+    // so a what-if / redeploy against the live dev budget shows no churn. The three Actual-cost
+    // rungs are the $5 (33%) / $12 (80%) / $15 (100%) early-warning/warning/action ladder.
     notifications: {
-      earlyWarning_Actual_33: {
+      actual_GreaterThan_33_Percent: {
         enabled: true
         operator: 'GreaterThan'
         threshold: 33
@@ -85,7 +88,7 @@ resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
         ]
         locale: 'en-us'
       }
-      warning_Actual_80: {
+      actual_GreaterThan_80_Percent: {
         enabled: true
         operator: 'GreaterThan'
         threshold: 80
@@ -95,7 +98,7 @@ resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
         ]
         locale: 'en-us'
       }
-      actionNeeded_Actual_100: {
+      actual_GreaterThan_100_Percent: {
         enabled: true
         operator: 'GreaterThan'
         threshold: 100

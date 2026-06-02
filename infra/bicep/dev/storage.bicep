@@ -58,29 +58,30 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
   parent: storage
   name: 'default'
   properties: {
+    // 30-day retention matches the live dev account (Sprint 1.3). This is a data-safety
+    // floor — never lower it; a smaller window shrinks the kids'-songs recovery period.
     deleteRetentionPolicy: {
       enabled: true
-      days: 7
+      days: 30
     }
     containerDeleteRetentionPolicy: {
       enabled: true
-      days: 7
+      days: 30
     }
     isVersioningEnabled: true
-    changeFeed: {
-      enabled: false
-    }
+    // changeFeed deliberately not set — dev never enabled it; leaving it unmanaged keeps
+    // the what-if diff against dev clean.
   }
 }
 
-// Three containers per Sprint 1.3:
-//   raw-uploads     — D28 canonical archive
-//   finished        — transcoded derivatives, regeneratable
-//   _test-artifacts — operator-driven smoke tests (D28 carve-out from Sprint 1.5)
+// Three containers per Sprint 1.3 + D33:
+//   raw-uploads   — D28 canonical archive (kids' original creations)
+//   finished      — transcoded derivatives, regeneratable
+//   table-backups — D33 nightly Table Storage JSON exports (same-account, separate container)
 var containerNames = [
   'raw-uploads'
   'finished'
-  '_test-artifacts'
+  'table-backups'
 ]
 
 resource containers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [for c in containerNames: {
