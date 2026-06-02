@@ -45,7 +45,8 @@ Tracks notable versions/milestones of the project and key dependency/tooling ver
 | SWA tier (dev) | **Free** (D26) | Sufficient for the architecture as designed; Standard is not needed yet. |
 | SWA tier (prod) | **Decided in Sprint 9.1** (D26) | Free or Standard; Standard only if custom domain is wanted. Documented known future fork. |
 | Budget alert | **$15/month (dev)** | Generous enough not to false-alarm; low enough that anything runaway trips it. Prod alert level decided in Sprint 9.1. |
-| Azure resource API/SKU choices | TBD | Filled in Epic 1. |
+| Azure resource API/SKU choices | Captured in Bicep (Epic 1) | Per-resource `apiVersion`s pinned in `infra/bicep/*.bicep` (e.g. storage `2023-05-01`, Container Apps `2024-03-01`, SWA `2024-04-01`, Event Grid systemTopics `2024-06-01-preview`). SKUs: Storage `Standard_LRS`, SWA `Free`, LAW `PerGB2018`. |
+| IaC DSL / tool | **Bicep CLI 0.43.8** (D39) | Epic 1 landing zone captured as env-neutral Bicep under `infra/bicep/`. Installed via `az bicep install` (standalone + az-bundled both 0.43.8). Prod (Sprint 9.1) deploys the same templates with `env=prod`. |
 
 ## Verified runtime support — Static Web Apps managed functions
 
@@ -56,6 +57,14 @@ Node 22 GA support for SWA managed functions verified **2026-05-24** against:
 - Stale page caveat: <https://learn.microsoft.com/en-us/azure/static-web-apps/apis-functions> — the "Constraints" table on this page still lists Node 12/14/16/18/20-preview and is internally inconsistent with the languages-runtimes page. The languages-runtimes page is authoritative.
 
 Re-verify these links when bumping Node major or before Epic 2 if more than a quarter has passed.
+
+## Verified — IaC capture faithfully reconstructs the dev landing zone
+
+Sprint 1.6 validated the `infra/bicep/` templates **2026-06-01**, two ways:
+- **Forward:** deployed `main.bicep` (`env=validate`) to a throwaway RG; `az resource list` + property spot-checks matched the live dev RG (7/7 resource types; containers/queues/table; SWA repo-decoupling; Container App MI + 2 RBAC roles; blob soft-delete + versioning).
+- **Reverse:** `az deployment group what-if` against the live dev RG — every delta a known-safe tag/computed-field/accepted item. The two-pass audit caught 6 capture gaps before merge (blob soft-delete 7→30d, `maxReplicas` 3→1, placeholder image, a stray env var, budget-notification key naming, and a wrong RBAC role Queue→Table). Full attestation in gitignored `infra/dev-resources.md`.
+
+Re-run a `what-if` against the target env before any future deploy from these templates (Sprint 9.1 prod, or a dev reconcile at Sprint 1.7).
 
 ## How to update
 
