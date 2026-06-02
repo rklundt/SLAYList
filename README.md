@@ -44,7 +44,11 @@ Browse to **`http://localhost:5193`** — you should see the "SLAYList — it wo
 
 Ctrl-C in the terminal stops all four. Azurite's local data lives in `.azurite/` (gitignored).
 
-**Convenience kickoff script:** `scripts/dev.sh` (tracked, portable) checks the five dev ports for orphaned listeners from prior crashed runs, force-kills them, verifies prereq versions, then runs `pnpm dev`. Run it as `./scripts/dev.sh` from the repo root. A `dev.sh` at the repo root is gitignored if you want to drop a machine-specific override there.
+**Convenience kickoff scripts** (same behavior — clear orphaned dev ports, verify prereq versions, then `pnpm dev`):
+- **Git Bash / macOS / Linux:** `./scripts/dev.sh`
+- **Windows cmd / PowerShell:** `scripts\dev.bat` (native — no Git Bash needed)
+
+A `dev.sh` at the repo *root* is gitignored if you want to drop a machine-specific override there.
 
 Other commands:
 
