@@ -72,3 +72,31 @@ Phase split:
 - Solution architect: data stores physically separate from prod (D7); queue is Storage Queue not Service Bus (D6); SWA on Free per D26; App Insights is the single failure sink per D24, not one-per-component.
 - Sr dev: retention window is a conscious number, not a default left unread.
 - Support: guide is followable; owner knows what each resource is for; owner knows where to look in App Insights when something fails (link saved in `docs/infra` notes).
+
+---
+
+## Sprint 1.7 — Reconcile the live dev RG to the Bicep (bring dev under IaC management)  **[Human, guided]**
+
+*Added after Sprint 1.6's deploy + `what-if` audit. Sprint 1.6 captured the dev landing zone as Bicep and PROVED it faithful two ways (deploy-to-throwaway + `what-if` against live dev). It deliberately did NOT mutate the live dev RG — capture and read-only proof only. Sprint 1.7 is the separate, deliberate step of actually applying the Bicep to `rg-music-slaylist-dev-use2` so dev's resources are tagged `managed-by=bicep` and future dev changes flow through reviewable PRs. Split out as its own sprint because applying IaC to a live environment is a different risk class than authoring it, and deserves its own `/wrap-sprint` review. **Optional / low-priority: does NOT block Epic 1 closure (1.6) or Epic 2 start.** The fresh prod build at Sprint 9.1 does not depend on this — prod starts empty and has none of the reconcile caveats below.*
+
+- As the owner, I want the live dev resources brought under Bicep management (`managed-by=bicep`, `region` tag added) so dev and prod are managed identically and dev drift is caught by future `what-if` runs.
+
+- As the owner, I want the reconcile done with the known caveats handled explicitly (documented in D39 + the 1.6 guide) so applying IaC to a live environment doesn't surprise me.
+
+Acceptance:
+- Pre-flight `az deployment group what-if` against `rg-music-slaylist-dev-use2` reviewed; output matches the D39 "known what-if interpretation notes" (only safe tag changes, computed-field noise, the accepted action-group decoupling, and the two role-assignment creates). Any NEW unexpected delta STOPS the sprint.
+- **Role-assignment 409 handled:** dev's two existing portal-created role assignments (Blob Data Contributor + Table Data Contributor on the storage account, random GUIDs from Sprint 1.4) are deleted first, so the Bicep's deterministically-named assignments create cleanly instead of hitting `RoleAssignmentExists`. Brief RBAC gap on the scale-to-zero placeholder is acceptable (no real workload running).
+- `az deployment group create` applied to the live dev RG with `env=dev region=use2 workload=music app=slaylist budgetStartDate=<dev's actual first-of-month start>`. Deployment succeeds.
+- Post-deploy verification: dev resources now carry `managed-by=bicep` + `region=use2` tags; the two role assignments are present (deterministic GUIDs); blob soft-delete still 30d, versioning still on, all data intact (D7/D28 — no data-store disruption); budget alert still firing-capable.
+- Attestation in gitignored `infra/dev-resources.md`.
+
+Phase split:
+- **Phase A (agent):** pre-flight `what-if` review; write/extend the operator walkthrough (`docs/guides/1.7-dev-iac-reconcile.md`) covering the role-assignment deletion, the apply, and the post-deploy verification; confirm no Bicep changes are needed (1.6 already made the templates dev-faithful).
+- **Phase B (human):** delete dev's two existing role assignments; `az deployment group create` against the live dev RG; verify tags + RBAC + data intact; attest in gitignored notes.
+
+### Reviewer focus (/wrap-sprint)
+- Infosec: the brief RBAC gap during role-assignment swap doesn't expose anything (placeholder app, scale-to-zero, no real data yet per D22 corollary); no secrets enter source.
+- Solution architect: applying IaC to live dev does not disturb data stores (D7/D28); the reconcile is tags + RBAC-naming only, not a data-plane change.
+- Sr dev: `what-if` reviewed BEFORE apply; the role-assignment 409 is pre-handled, not discovered mid-deploy.
+- DevOps: dev now matches the prod-deploy path exactly (Sprint 9.1 parity); `managed-by=bicep` is now truthful for dev.
+- Support: owner understands that dev is now code-managed and what that means for future changes (portal edits will show as drift in the next `what-if`).
