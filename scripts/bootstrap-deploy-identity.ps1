@@ -11,6 +11,18 @@
   the Bicep (D41: it's a Microsoft Graph object, not ARM, and it's the bootstrap credential the
   Bicep itself runs under). Run once per environment by an operator with their own credentials.
 
+  BIG PICTURE (plain English, if you're new to this):
+    - The problem: GitHub Actions needs PERMISSION to deploy our app to Azure. The naive way is to
+      store an Azure password in the repo's CI -- on a PUBLIC repo, a leak waiting to happen.
+    - The fix (OIDC federation): instead of a stored secret, Actions hands Azure a short-lived signed
+      token proving "this is OUR repo on the develop branch"; Azure trusts it (via the rule steps 1-3
+      set up) and hands back a short-lived deploy token. Nothing long-lived exists to leak.
+    - Jargon decoder: "app registration" = an identity in Azure's directory; "service principal" =
+      that identity's account in our tenant; "federated credential" = the trust rule; step 4 gives that
+      identity deploy rights to exactly ONE resource group (not the whole subscription).
+    - Not deploy-related: the two "connection strings" (step 6) are just runtime settings the app reads
+      (storage + telemetry) -- stored as GitHub secrets so CI can put them in the app's config later.
+
   STEPS (what -> why). Each step is check-then-create, so the whole script is idempotent:
     1. Entra app registration   -> the identity GitHub Actions will act as (D30).
     2. Service principal         -> the app's usable instance in this tenant; RBAC attaches to it.
