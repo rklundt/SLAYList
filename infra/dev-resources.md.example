@@ -237,7 +237,7 @@ Provisioned by `scripts/bootstrap-deploy-identity.ps1` (idempotent; re-run any t
 identifiers here after running it. **No client secret and no SWA deploy token are stored anywhere** —
 that's the whole point of OIDC (D30) + D37.
 
-- **Entra deploy app display name:** `slaylist-github-deploy`
+- **Entra deploy app display name:** `slaylist-github-deploy-dev`  (SEPARATE app per environment — D7 two-app model; prod gets its own `slaylist-github-deploy-prod` at Epic 9, so a develop-branch run can never reach prod)
 - **App (client) ID:** `<deploy-app-client-id>`  (stored as GitHub secret `AZURE_CLIENT_ID`)
 - **Federated credential subject:** `repo:rklundt/SLAYList:ref:refs/heads/develop`  (dev; prod adds `…:refs/heads/main` at Epic 9)
 - **RBAC:** Contributor on `rg-music-slaylist-dev-use2` only (NOT subscription; D7)

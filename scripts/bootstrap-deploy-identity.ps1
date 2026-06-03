@@ -53,25 +53,35 @@
   (it stays in gitignored notes as a break-glass fallback only). D17: no secrets/GUIDs are
   hardcoded -- identifiers come from `az account show`, connection strings are fetched live.
 
-  Prod (Epic 9) re-runs this with prod parameters (-Env prod -Branch main). Whether prod reuses
-  this same app (one identity, both RGs) or a separate prod app is the one-vs-two decision flagged
-  for Epic 9 -- pass a distinct -AppDisplayName for the separate-app path.
+  SEPARATE app per environment (the chosen "two apps" model, D7): the app is named
+  slaylist-github-deploy-<env> by default, so the dev identity holds dev-RG rights ONLY and a
+  develop-branch run can never reach prod. Prod (Epic 9) re-runs this with -Env prod -Branch main,
+  creating a distinct slaylist-github-deploy-prod app scoped to the prod RG.
 
 .PARAMETER DryRun
   Print every create/set command instead of running it. Read-only checks still run. Use this
   first to preview exactly what will be created.
+
+.PARAMETER RunUpToStep
+  Run only steps 1..N then stop (cautious, incremental execution). 0 (default) runs everything.
+  Composes with -DryRun (preview up to a given step). Steps: 1 app, 2 service principal,
+  3 federated credential, 4 RBAC, 5 ID secrets, 6 connection-string secrets, 7 verify.
 
 .EXAMPLE
   ./scripts/bootstrap-deploy-identity.ps1 -DryRun
   Preview the dev bootstrap (no changes).
 
 .EXAMPLE
+  ./scripts/bootstrap-deploy-identity.ps1 -RunUpToStep 3
+  Cautiously run only steps 1-3 (app + service principal + federated credential), then stop.
+
+.EXAMPLE
   ./scripts/bootstrap-deploy-identity.ps1
-  Run the dev bootstrap for real.
+  Run the dev bootstrap for real (all steps).
 
 .EXAMPLE
   ./scripts/bootstrap-deploy-identity.ps1 -Env prod -Branch main -ResourceGroup rg-music-slaylist-prod-use2
-  Bootstrap prod (Epic 9), reusing the same deploy app.
+  Bootstrap prod (Epic 9) as a SEPARATE app (slaylist-github-deploy-prod), prod-RG-scoped.
 
 .NOTES
   Requires `az login` (subscription that owns the env's RG) and `gh auth login` (write access to
@@ -88,11 +98,17 @@ param(
   [string]$RepoName = 'SLAYList',
   # Git branch whose Actions runs may assume this identity. Defaults from env if not passed.
   [string]$Branch = '',
-  # Entra app display name. Default is shared across environments (one identity); pass a distinct
-  # name for the separate-prod-app path (the Epic 9 one-vs-two decision).
-  [string]$AppDisplayName = 'slaylist-github-deploy',
+  # Entra app display name. Defaults to slaylist-github-deploy-<env> -- a SEPARATE app per
+  # environment (the chosen "two apps" model, D7): the dev identity holds dev-RG rights only and
+  # can NEVER reach prod, and vice versa. Pass an explicit shared name if you ever want one app
+  # for both (not recommended -- a develop-branch run would then carry prod RBAC too).
+  [string]$AppDisplayName = '',
   # Resource group to scope Contributor RBAC to. Defaults to the env's RG from the naming pattern.
   [string]$ResourceGroup = '',
+  # Run only steps 1..N and stop (for cautious, incremental execution). 0 = run everything.
+  # Steps: 1 app, 2 service principal, 3 federated credential, 4 RBAC, 5 ID secrets,
+  # 6 connection-string secrets, 7 verify. Composes with -DryRun (preview up to a step).
+  [ValidateRange(0, 7)][int]$RunUpToStep = 0,
   [switch]$DryRun
 )
 
@@ -105,9 +121,18 @@ function Do-Or-Show([string]$desc, [scriptblock]$action) {
   if ($DryRun) { Write-Host "  [dry-run] would: $desc" -ForegroundColor Yellow; return $null }
   return & $action
 }
+# -RunUpToStep gate: call before each step; the first step past the limit prints a note and exits 0.
+function Stop-If-Past([int]$n) {
+  if ($RunUpToStep -gt 0 -and $n -gt $RunUpToStep) {
+    Write-Host ""
+    Note "Stopped after step $RunUpToStep (-RunUpToStep $RunUpToStep). Re-run without it, or with a higher value, to continue."
+    exit 0
+  }
+}
 
 # --- Resolve branch + names (same naming pattern as the Bicep) ---
 if (-not $Branch) { $Branch = if ($Env -eq 'prod') { 'main' } else { 'develop' } }
+if (-not $AppDisplayName) { $AppDisplayName = "slaylist-github-deploy-$Env" }
 if (-not $ResourceGroup) { $ResourceGroup = "rg-$Workload-$App-$Env-$Region" }
 $appInsightsName = "appi-$Workload-$App-$Env-$Region"
 
@@ -156,6 +181,7 @@ if ($appId) {
   if (-not $DryRun) { Ok "created (appId $appId)" }
 }
 
+Stop-If-Past 2
 # --- 2. Service principal for the app (RBAC assignee) ---
 Info "2. Service principal"
 if ($appId) {
@@ -164,6 +190,7 @@ if ($appId) {
   else { Do-Or-Show "az ad sp create --id $appId" { az ad sp create --id $appId --only-show-errors | Out-Null }; if (-not $DryRun) { Ok "created" } }
 }
 
+Stop-If-Past 3
 # --- 3. Federated credential (NO client secret) ---
 Info "3. Federated credential for $fedSubject"
 $fedExists = $null
@@ -183,6 +210,7 @@ if ($fedExists) {
   if (-not $DryRun) { Ok "created (no client secret)" }
 }
 
+Stop-If-Past 4
 # --- 4. Contributor RBAC on the env RG ONLY (D7) ---
 Info "4. Contributor on $ResourceGroup (RG scope only, never subscription)"
 $rgScope = "/subscriptions/$subId/resourceGroups/$ResourceGroup"
@@ -199,6 +227,7 @@ if ($haveRole) {
   if (-not $DryRun) { Ok "assigned" }
 }
 
+Stop-If-Past 5
 # --- 5. GitHub secrets for the OIDC IDENTIFIERS ---
 # These three are really plain identifiers, not secrets (OIDC security is the federation + RBAC,
 # not hiding them). We store them as SECRETS anyway, on purpose: this is a PUBLIC repo, and GitHub
@@ -212,6 +241,7 @@ foreach ($k in $ids.Keys) {
   if (-not $DryRun) { Ok "$k set" }
 }
 
+Stop-If-Past 6
 # --- 6. GitHub secrets for the CONNECTION STRINGS (genuinely sensitive; fetched live, piped) ---
 Info "6. GitHub secrets: connection strings (storage + App Insights -- genuinely sensitive)"
 Note "D37: the SWA deployment token is intentionally NOT set here -- break-glass only, gitignored notes."
@@ -232,6 +262,7 @@ if ($aiConn) {
   if (-not $DryRun) { Ok "APPINSIGHTS_CONNECTION_STRING set" }
 } else { Note "WARN: could not fetch App Insights connection string for $appInsightsName (skipped)" }
 
+Stop-If-Past 7
 # --- 7. Verify + summary ---
 Write-Host ""
 Info "=== Verify (expect 5 secrets: 3 IDs + 2 connection strings; NO SWA deploy token, D37) ==="
