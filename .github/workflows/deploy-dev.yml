@@ -44,6 +44,10 @@ jobs:
         with:
           node-version: 22       # D18 runtime/CI parity
       - uses: pnpm/action-setup@v4
+        with:
+          standalone: true     # install @pnpm/exe (bundles its own Node). pnpm/action-setup is a JS
+                               # action, so it runs under the runner's Node 20 -- too old to install
+                               # pnpm 11.3.0 via the normal self-installer (ERR_PNPM_UNSUPPORTED_ENGINE).
       - run: pnpm install --frozen-lockfile
       - run: pnpm test           # Vitest across workspaces (D23/D34)
 
@@ -58,6 +62,10 @@ jobs:
         with:
           node-version: 22
       - uses: pnpm/action-setup@v4
+        with:
+          standalone: true     # install @pnpm/exe (bundles its own Node). pnpm/action-setup is a JS
+                               # action, so it runs under the runner's Node 20 -- too old to install
+                               # pnpm 11.3.0 via the normal self-installer (ERR_PNPM_UNSUPPORTED_ENGINE).
       - run: pnpm install --frozen-lockfile
       - name: Build frontend + API
         run: pnpm -r run build   # frontend -> frontend/dist (incl. staticwebapp.config.json); api -> api/dist
