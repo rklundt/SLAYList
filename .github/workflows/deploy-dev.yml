@@ -92,4 +92,6 @@ jobs:
           pnpm exec swa deploy ./frontend/dist \
             --api-location ./api/dist \
             --deployment-token "$TOKEN" \
-            --env production
+            --env production \
+            --api-language node \
+            --api-version 22
