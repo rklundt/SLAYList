@@ -11,16 +11,25 @@
   the Bicep (D41: it's a Microsoft Graph object, not ARM, and it's the bootstrap credential the
   Bicep itself runs under). Run once per environment by an operator with their own credentials.
 
-  What it does (each step checks-then-creates, so re-running is safe):
-    1. Entra app registration (the deploy identity)         -- D30
-    2. Service principal for that app (RBAC needs it)
-    3. Federated credential: repo:<owner>/<repo>:ref:refs/heads/<branch>  -- D30 (NO client secret)
-    4. Contributor RBAC on the env's resource group ONLY    -- D30/D7 (never subscription scope)
-    5. GitHub repo VARIABLES: AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID
-       (non-secret identifiers; the auth is the OIDC JWT exchange used by azure/login@v2)
-    6. GitHub repo SECRETS: AZURE_STORAGE_CONNECTION_STRING + APPINSIGHTS_CONNECTION_STRING,
-       fetched live from Azure (never pasted) and piped to gh via stdin (never on the command line)
-    7. Verify + summary
+  STEPS (what -> why). Each step is check-then-create, so the whole script is idempotent:
+    1. Entra app registration   -> the identity GitHub Actions will act as (D30).
+    2. Service principal         -> the app's usable instance in this tenant; RBAC attaches to it.
+    3. Federated credential      -> the OIDC trust "Actions on <repo>@<branch> may BE this identity",
+                                    with NO client secret to leak (D30). This is why we use OIDC at all.
+    4. Contributor on the env RG -> the identity's ONLY permission, scoped to one resource group, never
+                                    the subscription (D7). It can deploy to this env and nothing else.
+    5. GitHub repo VARIABLES     -> AZURE_CLIENT_ID / TENANT_ID / SUBSCRIPTION_ID. Plain identifiers (not
+                                    secrets); azure/login@v2 uses them + the OIDC token to sign in.
+    6. GitHub repo SECRETS       -> the storage + App Insights connection strings (fetched live from
+                                    Azure, never pasted), which Sprint 2.2 wires into SWA app settings.
+                                    The SWA deploy token is deliberately NOT set here (D37).
+    7. Verify                    -> print the gh variable/secret lists so you can confirm what landed.
+
+  RE-RUNNING / RECONCILE: safe anytime. Steps 1-4 check-then-create (no duplicates, no errors); steps
+  5-6 overwrite the variables/secrets to current Azure values. So a re-run RECONCILES -- e.g. refreshes
+  a rotated key, re-asserts the identity, or bootstraps prod (-Env prod) -- rather than breaking. It is
+  a reconciler, NOT a drift reporter: it makes state correct but doesn't tell you what was wrong. (A
+  read-only -CheckOnly mode could be added later, mirroring infra/bicep/drift-check.ps1, if wanted.)
 
   D37 is enforced by construction: the SWA deployment token is NEVER set as a GitHub secret here
   (it stays in gitignored notes as a break-glass fallback only). D17: no secrets/GUIDs are
