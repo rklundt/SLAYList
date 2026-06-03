@@ -12,6 +12,8 @@
 - As the owner, I want the app registered in Entra with `listener`, `uploader`, `admin` app roles.
 Acceptance: app registration exists; three roles defined; client/tenant IDs captured for config (as secrets/config, not in repo).
 
+**D41 parallel (decide at this sprint's planning):** this app registration + the three role *definitions* are the same kind of Microsoft Graph object the deploy identity is (D41) — equally scriptable, with the same audit + prod-repeatability benefits. Strongly consider provisioning them via a committed, idempotent bootstrap script (a sibling to `scripts/bootstrap-deploy-identity.*` from Sprint 2.1) rather than manual portal clicks. The per-person role *assignment* (Sprint 3.2) stays manual/guided. Also decide here whether this app registration is shared dev↔prod or created per-environment (it interacts with each SWA's custom-provider config) — the same one-vs-two question Sprint 9.x faces for the deploy identity.
+
 ## Sprint 3.2 — Shared family account + role assignment  **[Human, guided]**
 - As the owner, I want an admin-created shared family member account assigned a role, since the kids may not have email yet (Model A).
 Acceptance: shared account exists; assigned a role; documented how to delete/reassign later.

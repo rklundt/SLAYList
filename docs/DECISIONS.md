@@ -409,3 +409,34 @@ If a real-RG resource fails to materialize from the Bicep, the Bicep is fixed be
 - **(b)** A privacy/compliance regime applies that forbids identifying tokens in operational logs.
 
 **Cross-references:** **D32** (no PII in logs — D40 is the storage-diagnostic-logs-specific application of D32's principle, deciding the trust-boundary line explicitly rather than by accident); **D8** (blob filename = title-slug — the *source* of the slug that lands in object keys; option (b) at Sprint 5.2 changes this); **D24** (four-feeder observability sink — the storage diag settings are three of its feeder legs; D40 governs what those legs may carry); **D28** (raw-uploads canonical archive + verified-empty invariant — why there is no active PII in logs today); **D39** (the IaC that codifies these diagnostic settings — D40 is the conscious posture behind one piece of what D39 captures); **D20** (deferred platform-admin role — trigger (a)); **Sprint 1.3 `/wrap-sprint` Finding F2** BACKLOG item + **Sprint 5.2** (the permanent resolution this interim posture defers to); Epic 5 (uploads — the tripwire checkpoint).
+
+## D41 — The OIDC deploy identity is operator-bootstrapped via a committed script, NOT Bicep and NOT manual portal clicks
+**Decision:** the GitHub-Actions deploy identity — the Entra app registration + the GitHub federated credential + its Contributor RBAC on the dev RG + the GitHub repo variables/secrets — is provisioned by a **committed, parameterized, idempotent bootstrap script** (`scripts/bootstrap-deploy-identity.*`), run **once per environment** by an operator with their own credentials. It is NOT captured in the landing-zone Bicep (D39), and NOT a manual portal walkthrough.
+
+**Title chosen for findability:** a future agent setting up prod deploy auth (Epic 9), or asked "why isn't the deploy identity in the Bicep like everything else?", lands here.
+
+**Why not Bicep (the D39 default for infra):**
+- **Wrong plane.** Bicep is an **ARM** language — it deploys `Microsoft.*` Azure *resources*. An Entra app registration + federated credential are **Microsoft Graph / Entra ID** directory objects, outside ARM. The `Microsoft.Graph` Bicep extension exists but is **preview**, adds a dependency, and requires the deploying principal to hold Graph `Application.ReadWrite` directory permissions — a higher privilege than ARM Contributor.
+- **Bootstrap chicken-and-egg.** This is *the deploy credential* — the identity GitHub Actions uses to run our Bicep. It cannot be created by the pipeline it enables; the first one must be provisioned out-of-band by an operator. It is "level 0," the seed the Epic 1 Bicep itself stands on.
+- **One-time, no churn.** Created once per environment (dev now, prod at Epic 9), never reconciled or drift-checked. IaC's payoff is on things recreated/churned often; a seed credential doesn't clear that bar.
+- **Privilege smell + RBAC loop.** Putting it in the landing-zone Bicep means the infra deploy would manage *its own deployer's identity and permissions* — a loop to avoid. The deploy identity's own Contributor RBAC (an ARM resource that *could* be Bicep) is therefore kept **in the bootstrap script with the identity it grants**, not in the landing-zone Bicep.
+
+**Why not manual portal clicks:**
+- **Audit + reproducibility.** A committed script is version-controlled, code-reviewed, and diff-able; a portal walkthrough is none of those.
+- **Prod-repeatability.** Epic 9 prod = run the **same script with prod parameters** (`-Env prod`, prod RG, `main` branch federated subject), not a re-click of a 20-step guide.
+- **Manual-error reduction.** The script encodes the exact federated-credential subject, the dev-RG-only scope (D7/D30), and the "no client secret / SWA token not in GitHub Secrets" posture (D37) so they can't be fat-fingered.
+
+**Why a script is the right middle ground:** it captures the *spirit* of IaC (version-controlled, reviewable, idempotent, parameterized, prod = same code) without misusing Bicep for non-ARM Graph objects. This is the standard "bootstrap/seed credential" pattern (Terraform has the identical bootstrap problem and solves it the same way — a seed step outside the managed state).
+
+**Requirements on the script (Sprint 2.1):**
+- **Idempotent** — safe to re-run; checks existence before create (app, federated credential, role assignment, each variable/secret).
+- **Parameterized** by environment / resource group / repo / branch so prod is a parameter substitution.
+- **No secrets in the committed file (D17)** — the storage + App Insights connection strings it loads into GitHub Secrets are read from the gitignored `infra/dev-resources.md` (or operator-supplied parameters / prompts), never hardcoded. Tenant/subscription/app IDs are passed in or read from gitignored notes, not committed.
+- **SPDX header (D15)** — it's a source file.
+
+**Considered and rejected:**
+- *(A) Microsoft.Graph Bicep extension.* Rejected for the bootstrap credential: preview maturity on the most foundational piece, plus the Graph-privilege escalation and the bootstrap chicken-and-egg remain.
+- *(B) Manual portal walkthrough (the original Sprint 2.1 framing).* Rejected: no audit trail, not prod-repeatable, fat-finger-prone for the exact thing (federated subject, RBAC scope) that must be precise.
+- *(C) Put the deploy identity's RBAC (only) in the landing-zone Bicep.* Rejected: creates the "infra manages its own deployer" loop and a principalId dependency on an out-of-band object; cleaner to keep the identity and its grant together in the bootstrap.
+
+**Cross-references:** **D30** (OIDC federation — D41 is *how* D30's identity gets provisioned); **D37** (SWA deploy token stays out of GitHub Secrets — the script enforces this); **D39** (Bicep for the ARM landing zone — D41 is the explicit carve-out for the non-ARM Graph identity, and the reason the deploy identity is the one piece of infra *not* in `infra/bicep/`); **D7** (RBAC on dev RG only, not subscription — the script scopes it); **D17** (no secrets/identifiers in the committed script); Epic 9 / Sprint 9.x (prod deploy identity = same script, prod params).

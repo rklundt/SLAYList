@@ -18,7 +18,7 @@
 - As a developer, I want a workflow that builds a Dockerfile, pushes the image to a registry, and updates the dev Container App revision on push to `develop`, so the same plumbing that ships frontend+API in Epic 2 has an image-side counterpart.
 
 Acceptance (high-level — detailed scoping at sprint planning):
-- A registry choice is made and recorded in `docs/VERSIONS.md` + `docs/DECISIONS.md`.
+- A registry choice is made and recorded in `docs/VERSIONS.md` + `docs/DECISIONS.md`. **If the choice is ACR (Azure Container Registry), the deploy identity's push permission (`AcrPush`) is granted by EXTENDING the bootstrap-deploy-identity script (D41) — not hand-added — so the deploy identity's RBAC stays in one reviewed, prod-repeatable place. (GHCR / Docker Hub use non-Azure registry auth via a GitHub secret instead, so the bootstrap script is unaffected.)**
 - A GitHub Actions workflow builds a placeholder Dockerfile, pushes the image, and updates the dev Container App revision.
 - The placeholder container runs end-to-end on the dev Container App via that workflow on a push to `develop`.
 - Depends on: Epic 1.4 (dev Container App environment exists). Does NOT depend on: Epic 3 (transcoder is back-end, not user-facing — D22 applies to user-facing environments).

@@ -50,7 +50,7 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 - **Exit:** dev resources exist in portal AND are captured as IaC; manual-portal scope ✅ at Sprint 1.5; IaC capture closed at Sprint 1.6; live dev brought under Bicep management at Sprint 1.7.
 
 ### Epic 2 — Pipeline (dev, on the skeleton)
-- ⬜ 2.1 Deploy credentials + GitHub secrets
+- ⬜ 2.1 Deploy credentials (OIDC federation, D30/D37) — provisioned by a committed idempotent **bootstrap script** (D41: not Bicep — Graph plane + bootstrap credential; not manual — audit + prod-repeatability) that creates the Entra deploy app + `develop` federated credential + dev-RG Contributor RBAC + GitHub variables/secrets
 - ⬜ 2.2 Actions workflow: build + deploy frontend/API to dev SWA on push to `develop`
 - ⬜ 2.3 Run it, fix first-deploy errors
 - **Exit:** push to `develop` auto-deploys skeleton to dev; loads on the internet.
