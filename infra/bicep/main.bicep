@@ -41,6 +41,24 @@ param budgetAmountUsd int = 15
 @description('Container image reference for the transcoder. Defaults to the same public placeholder the live dev Container App runs (Sprint 1.4). Sprint 6.1 swaps in the real transcoder image.')
 param containerAppImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
+@description('Container App vCPU tier. Memory is derived to the valid Consumption-profile pair in containerapp.bicep. dev default 0.25; prod passes a higher tier (e.g. 0.5 / 1.0) for faster transcodes.')
+@allowed([
+  '0.25'
+  '0.5'
+  '0.75'
+  '1.0'
+  '1.25'
+  '1.5'
+  '1.75'
+  '2.0'
+])
+param containerCpu string = '0.25'
+
+@description('Container App max replica count (scale ceiling). minReplicas stays 0 (scale-to-zero, D4). dev default 1; prod may raise for concurrent transcodes.')
+@minValue(1)
+@maxValue(30)
+param maxReplicas int = 1
+
 // Physical Azure location is DERIVED from the region code, never passed independently —
 // this makes it impossible to deploy resources named `...-usw2` into East US 2 by forgetting
 // to also change a separate location param. Adding a new region is a deliberate code change:
@@ -126,6 +144,8 @@ module containerApp 'containerapp.bicep' = {
     caName: names.outputs.caName
     lawName: observability.outputs.lawName
     containerAppImage: containerAppImage
+    containerCpu: containerCpu
+    maxReplicas: maxReplicas
     storageName: storage.outputs.storageName
   }
 }

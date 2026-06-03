@@ -231,6 +231,35 @@ Lives inside `stmusicslaylistdevuse2`. No global uniqueness, no prefix per `infr
 
 **Prod budget:** deferred to Epic 9 (Sprint 9.1) when prod resources exist; an empty-RG budget would be noise. See `docs/BACKLOG.md` "Deferred by design" — prod budget mirror.
 
+## Deploy credentials (Sprint 2.1 — OIDC, D30/D37/D41)
+
+Provisioned by `scripts/bootstrap-deploy-identity.ps1` (idempotent; re-run any time). Capture the
+identifiers here after running it. **No client secret and no SWA deploy token are stored anywhere** —
+that's the whole point of OIDC (D30) + D37.
+
+- **Entra deploy app display name:** `slaylist-github-deploy-dev`  (SEPARATE app per environment — D7 two-app model; prod gets its own `slaylist-github-deploy-prod` at Epic 9, so a develop-branch run can never reach prod)
+- **App (client) ID:** `<deploy-app-client-id>`  (stored as GitHub secret `AZURE_CLIENT_ID`)
+- **Federated credential subject:** `repo:rklundt/SLAYList:ref:refs/heads/develop`  (dev; prod adds `…:refs/heads/main` at Epic 9)
+- **RBAC:** Contributor on `rg-music-slaylist-dev-use2` only (NOT subscription; D7)
+
+**GitHub repo SECRETS set by the script** (all 5 are secrets — see the IDs note below):
+
+| GitHub secret | Source | Feeds (Sprint 2.2) |
+|---|---|---|
+| `AZURE_CLIENT_ID` | deploy app's client ID | `azure/login@v2` (OIDC) |
+| `AZURE_TENANT_ID` = `<tenant-id>` | `az account show` | `azure/login@v2` (OIDC) |
+| `AZURE_SUBSCRIPTION_ID` = `<subscription-id>` | `az account show` | `azure/login@v2` (OIDC) |
+| `AZURE_STORAGE_CONNECTION_STRING` | `az storage account show-connection-string` (Sprint 1.3) | SWA app setting for the managed-functions API (D25) |
+| `APPINSIGHTS_CONNECTION_STRING` | App Insights resource (Sprint 1.1) | SWA app setting `APPLICATIONINSIGHTS_CONNECTION_STRING` (D24) |
+
+**On the three IDs being secrets:** they are really plain *identifiers*, not secrets (OIDC security is the federation + RBAC, not hiding them — Microsoft's docs normally use repo *variables*). We store them as secrets anyway, deliberately, because this is a PUBLIC repo: GitHub masks secrets in Actions logs but not variables, so this stops an accidental echo from becoming a permanent public recon breadcrumb. Cautious, not required (D30 implementation note). The `gh variable list` should therefore be **empty**.
+
+**NOT stored (D37):** the SWA deployment token (from Sprint 1.2). It lives only in the "Static Web App"
+section above as a break-glass fallback — never in GitHub Secrets, never referenced by any workflow.
+
+**Attestation (fill after Phase B):** date run; `gh variable list` + `gh secret list` output (secrets must
+show ONLY the two above — no SWA-deploy-token secret); confirmation a re-run reported everything already-exists (idempotent).
+
 ## Useful KQL queries
 
 (Saved per `docs/DEVELOPER_GUIDE.md` "Observability" — "save useful KQL queries in `infra/` notes so they're not re-derived under pressure.")

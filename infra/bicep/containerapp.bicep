@@ -34,6 +34,41 @@ param storageName string
 @description('Log Analytics workspace name — for CAE log-ingestion key lookup (same RG).')
 param lawName string
 
+// --- Sizing (parameterized so prod can run a tier or two above dev without forking the
+//     template — D39 "same templates, parameter substitution"). Defaults are the live dev
+//     values, so dev stays byte-identical and the drift-check stays CLEAN. ---
+@description('Container vCPU. Consumption-profile locks the pair to 1 vCPU : 2 GiB, so memory is DERIVED below from this single value (you cannot pick an invalid pair). dev default 0.25; prod typically a tier or two up (e.g. 0.5 or 1.0). ffmpeg is CPU-bound, so this is the lever that speeds transcodes.')
+@allowed([
+  '0.25'
+  '0.5'
+  '0.75'
+  '1.0'
+  '1.25'
+  '1.5'
+  '1.75'
+  '2.0'
+])
+param containerCpu string = '0.25'
+
+@description('Scale ceiling (max concurrent replicas). minReplicas stays 0 for scale-to-zero per D4 (idle ~= free), so this is the only scale knob. dev default 1; prod may want 2-3 for concurrent transcodes.')
+@minValue(1)
+@maxValue(30)
+param maxReplicas int = 1
+
+// Memory is derived from vCPU to guarantee a valid Consumption-profile pair (Gi = 2 x vCPU).
+// Keyed by the same @allowed set above; an unmapped value fails fast at deploy.
+var cpuToMemory = {
+  '0.25': '0.5Gi'
+  '0.5': '1Gi'
+  '0.75': '1.5Gi'
+  '1.0': '2Gi'
+  '1.25': '2.5Gi'
+  '1.5': '3Gi'
+  '1.75': '3.5Gi'
+  '2.0': '4Gi'
+}
+var containerMemory = cpuToMemory[containerCpu]
+
 // Same-RG existing-resource lookups (CAE needs LAW's customerId + sharedKey explicitly;
 // RBAC needs storage as the scope target).
 resource lawRef 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
@@ -88,10 +123,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'transcoder'
           image: containerAppImage
           resources: {
-            // Minimal CPU/memory — Sprint 1.4 settled at 0.25 vCPU / 0.5 GiB for the placeholder.
-            // Sprint 6.1 may revise once real ffmpeg load is measured.
-            cpu: json('0.25')
-            memory: '0.5Gi'
+            // CPU/memory from the parameterized sizing above (dev default 0.25 vCPU / 0.5 GiB;
+            // prod can pass a higher tier). Memory is derived to the valid Consumption pair.
+            cpu: json(containerCpu)
+            memory: containerMemory
           }
           // No env vars on the placeholder — matches the live dev Container App (Sprint 1.4).
           // Runtime auth is MI + RBAC per D25 (no storage connection string here). Sprint 6.1
@@ -100,8 +135,8 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         }
       ]
       scale: {
-        minReplicas: 0 // scale-to-zero per Sprint 1.4
-        maxReplicas: 1 // matches live dev (Sprint 1.4); raise only with measured need
+        minReplicas: 0 // scale-to-zero per D4 (idle ~= free) — kept for dev AND prod
+        maxReplicas: maxReplicas // parameterized; dev default 1, prod may raise
       }
     }
   }
