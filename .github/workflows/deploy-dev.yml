@@ -38,11 +38,12 @@ jobs:
     continue-on-error: true   # soft-mode: report red/green but never fail the workflow (D23)
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      # setup-node BEFORE pnpm/action-setup: pnpm 11.3.0 requires Node >=22.13, but the runner's
+      # default Node is 20, so installing pnpm first fails ERR_PNPM_UNSUPPORTED_ENGINE.
       - uses: actions/setup-node@v4
         with:
           node-version: 22       # D18 runtime/CI parity
-          cache: pnpm
+      - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm test           # Vitest across workspaces (D23/D34)
 
@@ -52,11 +53,11 @@ jobs:
     environment: dev             # OIDC subject -> environment:dev; exposes dev env-scoped secrets only
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      # setup-node BEFORE pnpm/action-setup (pnpm 11.3.0 needs Node >=22.13; runner default is 20).
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+      - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - name: Build frontend + API
         run: pnpm -r run build   # frontend -> frontend/dist (incl. staticwebapp.config.json); api -> api/dist
