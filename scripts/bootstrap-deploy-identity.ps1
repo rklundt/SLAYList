@@ -174,8 +174,16 @@ Write-Host ""
 
 # --- 1. Entra app registration (idempotent) ---
 Info "1. Entra app registration '$AppDisplayName'"
-$appId = az ad app list --display-name $AppDisplayName --query "[0].appId" -o tsv --only-show-errors 2>$null
-if ($appId) {
+# Guard: Entra ALLOWS duplicate display names, and `az ad app list` is eventually consistent, so a
+# re-run during AAD propagation lag can silently create a SECOND app. If more than one already
+# exists with this name, STOP and make the operator clean up rather than ambiguously picking [0].
+$appIds = @(az ad app list --display-name $AppDisplayName --query "[].appId" -o tsv --only-show-errors 2>$null)
+if ($appIds.Count -gt 1) {
+  Write-Host "  ERROR: $($appIds.Count) app registrations are named '$AppDisplayName' (appIds: $($appIds -join ', ')). Entra allows duplicate names; delete the extra(s) -- keep the one with the service principal + federated credential -- and re-run." -ForegroundColor Red
+  exit 1
+}
+if ($appIds.Count -eq 1) {
+  $appId = $appIds[0]
   Ok "exists (appId $appId)"
 } else {
   $appId = Do-Or-Show "az ad app create --display-name $AppDisplayName" {
