@@ -124,6 +124,15 @@ function Do-Or-Show([string]$desc, [scriptblock]$action) {
   if ($DryRun) { Write-Host "  [dry-run] would: $desc" -ForegroundColor Yellow; return $null }
   return & $action
 }
+# Because $ErrorActionPreference is 'Continue' (so expected az/gh stderr doesn't halt), a failed
+# CREATE no longer throws -- so we must check $LASTEXITCODE explicitly after each one, or the
+# script would print "OK" on a real failure. Call this right after a create's Do-Or-Show.
+function Assert-LastOk([string]$what) {
+  if (-not $DryRun -and $LASTEXITCODE -ne 0) {
+    Write-Host "  ERROR: $what failed (exit code $LASTEXITCODE). Fix the cause and re-run (the script is idempotent)." -ForegroundColor Red
+    exit 1
+  }
+}
 # -RunUpToStep gate: call before each step; the first step past the limit prints a note and exits 0.
 function Stop-If-Past([int]$n) {
   if ($RunUpToStep -gt 0 -and $n -gt $RunUpToStep) {
@@ -189,8 +198,12 @@ if ($appIds.Count -eq 1) {
   $appId = Do-Or-Show "az ad app create --display-name $AppDisplayName" {
     az ad app create --display-name $AppDisplayName --query appId -o tsv --only-show-errors
   }
+  Assert-LastOk "app registration create"
   if (-not $DryRun) { Ok "created (appId $appId)" }
 }
+# In dry-run on a fresh env, the app wasn't actually created so $appId is blank; use a placeholder
+# so the downstream "would: ... --id <id>" preview lines read sensibly instead of "--id ".
+if ($DryRun -and -not $appId) { $appId = '<new-app-id>' }
 
 Stop-If-Past 2
 # --- 2. Service principal for the app (RBAC assignee) ---
@@ -231,9 +244,10 @@ if ($fedExists) {
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "fedcred-$Env.json"
     Set-Content -Path $tmp -Value $fedJson -Encoding ascii
     az ad app federated-credential create --id $appId --parameters "@$tmp" --only-show-errors | Out-Null
+    $script:fedRc = $LASTEXITCODE
     Remove-Item $tmp -Force
   }
-  if (-not $DryRun) { Ok "created (no client secret)" }
+  if (-not $DryRun) { $global:LASTEXITCODE = $script:fedRc; Assert-LastOk "federated credential create"; Ok "created (no client secret)" }
 }
 
 Stop-If-Past 4
@@ -250,7 +264,7 @@ if ($haveRole) {
   Do-Or-Show "az role assignment create --role Contributor --scope $rgScope" {
     az role assignment create --assignee $appId --role Contributor --scope $rgScope --only-show-errors | Out-Null
   }
-  if (-not $DryRun) { Ok "assigned" }
+  if (-not $DryRun) { Assert-LastOk "role assignment create"; Ok "assigned" }
 }
 
 Stop-If-Past 5
@@ -264,7 +278,7 @@ Info "5. GitHub secrets: OIDC identifiers (stored as secrets out of caution -- t
 $ids = @{ 'AZURE_CLIENT_ID' = $appId; 'AZURE_TENANT_ID' = $tenantId; 'AZURE_SUBSCRIPTION_ID' = $subId }
 foreach ($k in $ids.Keys) {
   Do-Or-Show "gh secret set $k (identifier; piped)" { $ids[$k] | gh secret set $k --repo $ghRepo 2>$null }
-  if (-not $DryRun) { Ok "$k set" }
+  if (-not $DryRun) { Assert-LastOk "gh secret set $k"; Ok "$k set" }
 }
 
 Stop-If-Past 6
@@ -277,7 +291,7 @@ if ($stConn) {
   Do-Or-Show "gh secret set AZURE_STORAGE_CONNECTION_STRING (value piped, not shown)" {
     $stConn | gh secret set AZURE_STORAGE_CONNECTION_STRING --repo $ghRepo 2>$null
   }
-  if (-not $DryRun) { Ok "AZURE_STORAGE_CONNECTION_STRING set" }
+  if (-not $DryRun) { Assert-LastOk "gh secret set AZURE_STORAGE_CONNECTION_STRING"; Ok "AZURE_STORAGE_CONNECTION_STRING set" }
 } else { Note "WARN: could not fetch storage connection string for $storageName (skipped)" }
 # App Insights connection string (D24) -- via generic resource show to avoid the app-insights extension
 $aiConn = az resource show -g $ResourceGroup -n $appInsightsName --resource-type "Microsoft.Insights/components" --query "properties.ConnectionString" -o tsv --only-show-errors 2>$null
@@ -285,7 +299,7 @@ if ($aiConn) {
   Do-Or-Show "gh secret set APPINSIGHTS_CONNECTION_STRING (value piped, not shown)" {
     $aiConn | gh secret set APPINSIGHTS_CONNECTION_STRING --repo $ghRepo 2>$null
   }
-  if (-not $DryRun) { Ok "APPINSIGHTS_CONNECTION_STRING set" }
+  if (-not $DryRun) { Assert-LastOk "gh secret set APPINSIGHTS_CONNECTION_STRING"; Ok "APPINSIGHTS_CONNECTION_STRING set" }
 } else { Note "WARN: could not fetch App Insights connection string for $appInsightsName (skipped)" }
 
 Stop-If-Past 7
