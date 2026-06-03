@@ -16,7 +16,10 @@ name: deploy-dev
 
 on:
   push:
-    branches: [develop]
+    # TEMP (Sprint 2.2 first-deploy shakeout): the sprint branch is here ONLY so the very first
+    # run can fire before the workflow reaches the default branch. REMOVE the sprint branch before
+    # merging -- afterward, push-to-develop auto-deploys and workflow_dispatch tests any branch.
+    branches: [develop, sprint/2.2-deploy-workflow]
   workflow_dispatch:
 
 permissions:
