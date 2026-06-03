@@ -30,12 +30,18 @@
                                     with NO client secret to leak (D30). This is why we use OIDC at all.
     4. Contributor on the env RG -> the identity's ONLY permission, scoped to one resource group, never
                                     the subscription (D7). It can deploy to this env and nothing else.
-    5. GitHub repo VARIABLES     -> AZURE_CLIENT_ID / TENANT_ID / SUBSCRIPTION_ID. Plain identifiers (not
-                                    secrets); azure/login@v2 uses them + the OIDC token to sign in.
-    6. GitHub repo SECRETS       -> the storage + App Insights connection strings (fetched live from
-                                    Azure, never pasted), which Sprint 2.2 wires into SWA app settings.
-                                    The SWA deploy token is deliberately NOT set here (D37).
-    7. Verify                    -> print the gh variable/secret lists so you can confirm what landed.
+    5. GitHub SECRETS (IDs)      -> AZURE_CLIENT_ID / TENANT_ID / SUBSCRIPTION_ID. NOTE: these are really
+                                    plain IDENTIFIERS, not secrets -- OIDC security comes from the
+                                    federation + RBAC, not from hiding them, and they'd normally be repo
+                                    *variables*. We store them as SECRETS anyway, deliberately, because
+                                    this is a PUBLIC repo: GitHub masks secrets in Actions logs but does
+                                    NOT mask variables, so storing them as secrets stops an accidental
+                                    echo from becoming a permanent public recon breadcrumb. Cautious, not
+                                    required. azure/login@v2 reads them as secrets exactly the same way.
+    6. GitHub SECRETS (config)   -> the storage + App Insights connection strings (genuinely sensitive;
+                                    fetched live from Azure, never pasted), which Sprint 2.2 wires into
+                                    SWA app settings. The SWA deploy token is deliberately NOT set (D37).
+    7. Verify                    -> print the gh secret list so you can confirm what landed.
 
   RE-RUNNING / RECONCILE: safe anytime. Steps 1-4 check-then-create (no duplicates, no errors); steps
   5-6 overwrite the variables/secrets to current Azure values. So a re-run RECONCILES -- e.g. refreshes
@@ -193,16 +199,21 @@ if ($haveRole) {
   if (-not $DryRun) { Ok "assigned" }
 }
 
-# --- 5. GitHub repo variables (non-secret identifiers) ---
-Info "5. GitHub repo variables (client/tenant/subscription IDs)"
-$vars = @{ 'AZURE_CLIENT_ID' = $appId; 'AZURE_TENANT_ID' = $tenantId; 'AZURE_SUBSCRIPTION_ID' = $subId }
-foreach ($k in $vars.Keys) {
-  Do-Or-Show "gh variable set $k" { gh variable set $k --repo $ghRepo --body $vars[$k] 2>$null | Out-Null }
+# --- 5. GitHub secrets for the OIDC IDENTIFIERS ---
+# These three are really plain identifiers, not secrets (OIDC security is the federation + RBAC,
+# not hiding them). We store them as SECRETS anyway, on purpose: this is a PUBLIC repo, and GitHub
+# masks secrets in Actions logs while leaving variables unmasked -- so as secrets, an accidental
+# echo can't become a permanent public recon breadcrumb. Cautious, not required. Piped via stdin so
+# the value never lands on the command line.
+Info "5. GitHub secrets: OIDC identifiers (stored as secrets out of caution -- they are really IDs)"
+$ids = @{ 'AZURE_CLIENT_ID' = $appId; 'AZURE_TENANT_ID' = $tenantId; 'AZURE_SUBSCRIPTION_ID' = $subId }
+foreach ($k in $ids.Keys) {
+  Do-Or-Show "gh secret set $k (identifier; piped)" { $ids[$k] | gh secret set $k --repo $ghRepo 2>$null }
   if (-not $DryRun) { Ok "$k set" }
 }
 
-# --- 6. GitHub repo secrets (fetched live from Azure, piped via stdin) ---
-Info "6. GitHub repo secrets (storage + App Insights connection strings)"
+# --- 6. GitHub secrets for the CONNECTION STRINGS (genuinely sensitive; fetched live, piped) ---
+Info "6. GitHub secrets: connection strings (storage + App Insights -- genuinely sensitive)"
 Note "D37: the SWA deployment token is intentionally NOT set here -- break-glass only, gitignored notes."
 # storage connection string (D25 -- SWA managed-functions API uses connection-string auth)
 $stConn = az storage account show-connection-string -n $storageName -g $ResourceGroup --query connectionString -o tsv --only-show-errors 2>$null
@@ -223,16 +234,17 @@ if ($aiConn) {
 
 # --- 7. Verify + summary ---
 Write-Host ""
-Info "=== Verify (D37: secrets must be the 2 connection strings only -- no SWA deploy token) ==="
+Info "=== Verify (expect 5 secrets: 3 IDs + 2 connection strings; NO SWA deploy token, D37) ==="
 if ($DryRun) {
   Write-Host "(dry-run: skipping live verification)" -ForegroundColor Yellow
 } else {
-  Write-Host "-- gh variable list --" -ForegroundColor DarkGray
+  # Variables list should be EMPTY now -- we deliberately store the IDs as secrets, not variables.
+  Write-Host "-- gh variable list (expect empty) --" -ForegroundColor DarkGray
   gh variable list --repo $ghRepo 2>$null
-  Write-Host "-- gh secret list --" -ForegroundColor DarkGray
+  Write-Host "-- gh secret list (expect the 5 above) --" -ForegroundColor DarkGray
   gh secret list --repo $ghRepo 2>$null
   Write-Host ""
   Ok "Bootstrap complete for env=$Env. Sprint 2.2's workflow consumes AZURE_CLIENT_ID/TENANT_ID/"
-  Note "SUBSCRIPTION_ID via azure/login@v2, and the two connection-string secrets via SWA app settings."
-  Note "Record the gh variable/secret list in the gitignored infra/<env>-resources.md attestation."
+  Note "SUBSCRIPTION_ID via azure/login@v2 (as secrets), and the two connection-string secrets via SWA app settings."
+  Note "Record the gh secret list in the gitignored infra/<env>-resources.md attestation."
 }
