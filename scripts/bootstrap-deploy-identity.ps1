@@ -112,7 +112,10 @@ param(
   [switch]$DryRun
 )
 
-$ErrorActionPreference = 'Stop'
+# Continue, not Stop: az/gh are native commands that write to stderr for ordinary, expected
+# conditions (e.g. "no service principal found yet"). Under Stop, that stderr is promoted to a
+# script-halting error. We check results explicitly (if/$LASTEXITCODE) instead.
+$ErrorActionPreference = 'Continue'
 
 function Info($m)  { Write-Host $m -ForegroundColor Cyan }
 function Ok($m)    { Write-Host "  OK: $m" -ForegroundColor Green }
@@ -183,11 +186,26 @@ if ($appId) {
 
 Stop-If-Past 2
 # --- 2. Service principal for the app (RBAC assignee) ---
+# Use `sp list --filter` (returns empty cleanly) NOT `sp show` (which ERRORS when no SP exists yet).
+# On create, the app may not have replicated across AAD right after step 1, so retry briefly.
 Info "2. Service principal"
 if ($appId) {
-  $spExists = az ad sp show --id $appId --query id -o tsv --only-show-errors 2>$null
-  if ($spExists) { Ok "exists" }
-  else { Do-Or-Show "az ad sp create --id $appId" { az ad sp create --id $appId --only-show-errors | Out-Null }; if (-not $DryRun) { Ok "created" } }
+  $spExists = az ad sp list --filter "appId eq '$appId'" --query "[0].id" -o tsv --only-show-errors 2>$null
+  if ($spExists) {
+    Ok "exists"
+  } else {
+    Do-Or-Show "az ad sp create --id $appId (with retry for AAD replication)" {
+      $created = $false
+      for ($i = 1; $i -le 6; $i++) {
+        az ad sp create --id $appId --only-show-errors 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { $created = $true; break }
+        Note "app not replicated yet (attempt $i/6); waiting 5s..."
+        Start-Sleep -Seconds 5
+      }
+      if (-not $created) { Write-Host "  ERROR: service principal create failed after retries -- the app may still be replicating. Wait a minute and re-run the script." -ForegroundColor Red; exit 1 }
+    }
+    if (-not $DryRun) { Ok "created" }
+  }
 }
 
 Stop-If-Past 3
