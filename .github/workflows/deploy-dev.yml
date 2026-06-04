@@ -76,7 +76,19 @@ jobs:
         # `pnpm deploy` assembles a complete, self-contained app folder (host.json + package.json +
         # dist + a real flattened node_modules incl. @azure/functions). --legacy is required since
         # pnpm v10 (we don't use injected workspace deps); --prod drops devDependencies.
-        run: pnpm --filter=@slaylist/api --prod --legacy deploy api/__deploy
+        run: |
+          pnpm --filter=@slaylist/api --prod --legacy deploy api/__deploy
+          # pnpm legacy-deploy plants a self-referential symlink (@slaylist/api -> the source api/
+          # folder, which still holds the full ~165MB dev node_modules). StaticSitesClient follows it
+          # when zipping and blows past the function size limit -> "An unknown exception has occurred".
+          # Strip any symlink that escapes the artifact so only the isolated ~1.4MB prod closure ships.
+          DEPLOY_DIR="$(cd api/__deploy && pwd)"
+          find api/__deploy/node_modules -type l | while read -r link; do
+            case "$(readlink -f "$link" 2>/dev/null)" in
+              "$DEPLOY_DIR"/*) : ;;
+              *) echo "stripping escaping symlink: $link"; rm -f "$link" ;;
+            esac
+          done
 
       - name: Azure login (OIDC -- no stored secret, D30)
         uses: azure/login@v2
