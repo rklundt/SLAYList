@@ -4,6 +4,8 @@ node_modules/
 dist/
 build/
 .vite/
+# assembled SWA managed-functions deploy artifact (pnpm deploy output)
+api/__deploy/
 # local env / secrets — NEVER commit
 .env
 .env.*

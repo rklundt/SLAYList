@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "main": "dist/src/index.js",
+  "files": ["dist", "host.json"],
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch --preserveWatchOutput",

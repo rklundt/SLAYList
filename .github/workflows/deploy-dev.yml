@@ -70,6 +70,14 @@ jobs:
       - name: Build frontend + API
         run: pnpm -r run build   # frontend -> frontend/dist (incl. staticwebapp.config.json); api -> api/dist
 
+      - name: Assemble the SWA managed-functions deploy artifact
+        # `tsc` only emits compiled JS into api/dist -- it has no host.json, package.json, or
+        # node_modules, so SWA's Functions host wouldn't recognize it as a function app.
+        # `pnpm deploy` assembles a complete, self-contained app folder (host.json + package.json +
+        # dist + a real flattened node_modules incl. @azure/functions). --legacy is required since
+        # pnpm v10 (we don't use injected workspace deps); --prod drops devDependencies.
+        run: pnpm --filter=@slaylist/api --prod --legacy deploy api/__deploy
+
       - name: Azure login (OIDC -- no stored secret, D30)
         uses: azure/login@v2
         with:
@@ -90,7 +98,7 @@ jobs:
           # Deploy pre-built content to the dev SWA's "production" slot (its main URL -- this is the
           # DEV site, not prod). The gated staticwebapp.config.json is inside frontend/dist (D22).
           pnpm exec swa deploy ./frontend/dist \
-            --api-location ./api/dist \
+            --api-location ./api/__deploy \
             --deployment-token "$TOKEN" \
             --env production \
             --api-language node \
