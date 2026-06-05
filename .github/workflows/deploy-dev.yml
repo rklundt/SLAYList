@@ -71,24 +71,22 @@ jobs:
         run: pnpm -r run build   # frontend -> frontend/dist (incl. staticwebapp.config.json); api -> api/dist
 
       - name: Assemble the SWA managed-functions deploy artifact
-        # `tsc` only emits compiled JS into api/dist -- it has no host.json, package.json, or
-        # node_modules, so SWA's Functions host wouldn't recognize it as a function app.
-        # `pnpm deploy` assembles a complete, self-contained app folder (host.json + package.json +
-        # dist + a real flattened node_modules incl. @azure/functions). --legacy is required since
-        # pnpm v10 (we don't use injected workspace deps); --prod drops devDependencies.
+        # `tsc` emits only compiled JS into api/dist -- no host.json, package.json, or node_modules,
+        # so SWA's Functions host wouldn't recognize it as a function app. Assemble a complete app
+        # folder (host.json + package.json + dist), then install prod deps with a FLAT, REAL
+        # node_modules via --node-linker=hoisted.
+        #
+        # Why flat matters: pnpm's default node_modules is a symlink farm (.pnpm + symlinks). Those
+        # symlinks do NOT survive StaticSitesClient's zip -> upload -> backend-extract, so on Azure's
+        # side @azure/functions is unresolvable and ZERO functions register (deploy still reports
+        # "succeeded"). A flat layout has no symlinks to break. --ignore-workspace makes it an
+        # isolated install (the api carries no runtime workspace deps); --prod drops devDependencies.
         run: |
-          pnpm --filter=@slaylist/api --prod --legacy deploy api/__deploy
-          # pnpm legacy-deploy plants a self-referential symlink (@slaylist/api -> the source api/
-          # folder, which still holds the full ~165MB dev node_modules). StaticSitesClient follows it
-          # when zipping and blows past the function size limit -> "An unknown exception has occurred".
-          # Strip any symlink that escapes the artifact so only the isolated ~1.4MB prod closure ships.
-          DEPLOY_DIR="$(cd api/__deploy && pwd)"
-          find api/__deploy/node_modules -type l | while read -r link; do
-            case "$(readlink -f "$link" 2>/dev/null)" in
-              "$DEPLOY_DIR"/*) : ;;
-              *) echo "stripping escaping symlink: $link"; rm -f "$link" ;;
-            esac
-          done
+          mkdir -p api/__deploy
+          cp api/host.json api/package.json api/__deploy/
+          cp -r api/dist api/__deploy/dist
+          cd api/__deploy
+          pnpm install --prod --node-linker=hoisted --ignore-workspace --no-lockfile
 
       - name: Azure login (OIDC -- no stored secret, D30)
         uses: azure/login@v2

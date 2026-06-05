@@ -14,7 +14,6 @@
     "start": "func start"
   },
   "dependencies": {
-    "@azure/functions": "^4.5.0",
-    "@slaylist/shared": "workspace:*"
+    "@azure/functions": "^4.5.0"
   }
 }
