@@ -50,10 +50,11 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 - **Exit:** dev resources exist in portal AND are captured as IaC; manual-portal scope ✅ at Sprint 1.5; IaC capture closed at Sprint 1.6; live dev brought under Bicep management at Sprint 1.7.
 
 ### Epic 2 — Pipeline (dev, on the skeleton)
+**Status: ✅ DONE.** Push to `develop` auto-deploys the gated skeleton to dev Azure via OIDC (no stored secret); the deployed dev URL is auth-gated from the first deploy (D22 — anonymous redirected to Microsoft sign-in) and, signed in, serves the "SLAYList — it works" page + a working `/api/health` (200). Exit criterion met at Sprint 2.3.
 - ✅ 2.1 Deploy credentials (OIDC federation, D30/D37) — provisioned by `scripts/bootstrap-deploy-identity.ps1`, a committed idempotent **bootstrap script** (D41: not Bicep — Graph plane + bootstrap credential; not manual — audit + prod-repeatability). Created the Entra deploy app `slaylist-github-deploy-dev` (**separate app per env**, D7 two-app model) + `develop` federated credential (no client secret) + dev-RG-only Contributor + **5 GitHub secrets** (3 OIDC IDs stored as secrets not variables for public-repo log-masking — D30 note; + storage & App Insights connection strings). SWA deploy token NOT in secrets (D37); `gh variable list` empty. Bonus: Container App CPU/mem/maxReplicas parameterized for prod sizing (dev unchanged, drift-check CLEAN). Least-privilege custom role backlogged.
-- ⬜ 2.2 Actions workflow: build + deploy frontend/API to dev SWA on push to `develop`
-- ⬜ 2.3 Run it, fix first-deploy errors
-- **Exit:** push to `develop` auto-deploys skeleton to dev; loads on the internet.
+- ✅ 2.2 Actions workflow (`.github/workflows/deploy-dev.yml`): test job (Vitest, soft-mode per D23) + build-and-deploy. pnpm build in CI, Oryx bypassed (D34); `azure/login` OIDC + `pnpm exec swa deploy` with the deploy token fetched at runtime + masked, never in Secrets (D37); D22 gate ships in `staticwebapp.config.json`; D24/D25 connection strings wired to SWA app settings.
+- ✅ 2.3 First deploy + verify: gated skeleton live on the dev SWA. Anonymous → Microsoft sign-in redirect (page, API, **and** JS assets all 302); signed-in → page renders + `/api/health` returns 200. Six first-deploy fixes documented in `docs/DEPLOYMENT_FLOW.md`; the load-bearing one = a **flat `node_modules`** so SWA registers the managed function (pnpm symlinks don't survive the deploy zip → 0 functions, silently). `@azure/functions` pinned exact `4.16.0`.
+- **Exit:** push to `develop` auto-deploys the gated skeleton to dev; loads on the internet behind auth. ✅ met at 2.3.
 
 ### Epic 3 — Identity (Entra + roles, the gate)
 - ⬜ 3.1 Entra app registration + define 3 roles (human-guided)
