@@ -1,0 +1,117 @@
+# Copyright (c) 2026 Ray Klundt
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Builds the skeleton (frontend + API) and deploys it to the dev Static Web App on push to develop.
+#   - Auth: OIDC federation (D30/D37) via the GitHub `dev` environment -- NO stored deploy secret.
+#     `environment: dev` on the deploy job makes GitHub mint an OIDC token whose subject is
+#     `repo:<owner>/<repo>:environment:dev` (matching the federated credential the bootstrap script
+#     created) AND exposes the dev environment-scoped secrets to that job only.
+#   - Gate: the deployed app is auth-gated from the very first deploy (D22) by
+#     frontend/public/staticwebapp.config.json (Vite copies it into frontend/dist).
+#   - Build: pnpm in CI, deploy pre-built artifacts (D34) -- no Oryx.
+#   - Deploy token is fetched at runtime via the OIDC-authed az session and masked -- never stored
+#     in GitHub Secrets (D37).
+
+name: deploy-dev
+
+on:
+  push:
+    branches: [develop]   # push to develop auto-deploys to dev; workflow_dispatch tests any branch
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # required for OIDC (azure/login)
+  contents: read
+
+env:
+  AZURE_RG: rg-music-slaylist-dev-use2
+  SWA_NAME: swa-music-slaylist-dev-use2
+
+jobs:
+  test:
+    # Soft-mode: test failures do NOT block merge until Sprint 4.1 hardens this (D23).
+    name: Test (soft mode)
+    runs-on: ubuntu-latest
+    continue-on-error: true   # soft-mode: report red/green but never fail the workflow (D23)
+    steps:
+      - uses: actions/checkout@v4
+      # setup-node BEFORE pnpm/action-setup: pnpm 11.3.0 requires Node >=22.13, but the runner's
+      # default Node is 20, so installing pnpm first fails ERR_PNPM_UNSUPPORTED_ENGINE.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22       # D18 runtime/CI parity
+      - uses: pnpm/action-setup@v4
+        with:
+          standalone: true     # install @pnpm/exe (bundles its own Node). pnpm/action-setup is a JS
+                               # action, so it runs under the runner's Node 20 -- too old to install
+                               # pnpm 11.3.0 via the normal self-installer (ERR_PNPM_UNSUPPORTED_ENGINE).
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test           # Vitest across workspaces (D23/D34)
+
+  build-and-deploy:
+    name: Build + deploy to dev SWA
+    runs-on: ubuntu-latest
+    environment: dev             # OIDC subject -> environment:dev; exposes dev env-scoped secrets only
+    steps:
+      - uses: actions/checkout@v4
+      # setup-node BEFORE pnpm/action-setup (pnpm 11.3.0 needs Node >=22.13; runner default is 20).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          standalone: true     # install @pnpm/exe (bundles its own Node). pnpm/action-setup is a JS
+                               # action, so it runs under the runner's Node 20 -- too old to install
+                               # pnpm 11.3.0 via the normal self-installer (ERR_PNPM_UNSUPPORTED_ENGINE).
+      - run: pnpm install --frozen-lockfile
+      - name: Build frontend + API
+        run: pnpm -r run build   # frontend -> frontend/dist (incl. staticwebapp.config.json); api -> api/dist
+
+      - name: Assemble the SWA managed-functions deploy artifact
+        # `tsc` emits only compiled JS into api/dist -- no host.json, package.json, or node_modules,
+        # so SWA's Functions host wouldn't recognize it as a function app. Assemble a complete app
+        # folder (host.json + package.json + dist), then install prod deps with a FLAT, REAL
+        # node_modules via --node-linker=hoisted.
+        #
+        # Why flat matters: pnpm's default node_modules is a symlink farm (.pnpm + symlinks). Those
+        # symlinks do NOT survive StaticSitesClient's zip -> upload -> backend-extract, so on Azure's
+        # side @azure/functions is unresolvable and ZERO functions register (deploy still reports
+        # "succeeded"). A flat layout has no symlinks to break. --ignore-workspace makes it an
+        # isolated install (the api carries no runtime workspace deps); --prod drops devDependencies.
+        run: |
+          mkdir -p api/__deploy
+          cp api/host.json api/package.json api/__deploy/
+          cp -r api/dist api/__deploy/dist
+          cd api/__deploy
+          pnpm install --prod --node-linker=hoisted --ignore-workspace --no-lockfile
+
+      - name: Azure login (OIDC -- no stored secret, D30)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Wire connection strings into SWA app settings (D24/D25)
+        run: |
+          az staticwebapp appsettings set -n "$SWA_NAME" -g "$AZURE_RG" --setting-names \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=${{ secrets.APPINSIGHTS_CONNECTION_STRING }}" \
+            "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}"
+
+      - name: Deploy to dev SWA (D37 -- OIDC; deploy token fetched at runtime, masked, never stored)
+        run: |
+          TOKEN=$(az staticwebapp secrets list -n "$SWA_NAME" -g "$AZURE_RG" --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$TOKEN"
+          # Deploy pre-built content to the dev SWA's "production" slot (its main URL -- this is the
+          # DEV site, not prod). The gated staticwebapp.config.json is inside frontend/dist (D22).
+          # `pnpm exec` uses the lockfile-pinned @azure/static-web-apps-cli devDependency: the
+          # assemble step installs into a separate folder (api/__deploy) and does NOT prune the
+          # workspace deps, so the swa CLI is present.
+          # NOTE: --api-version must stay in sync with staticwebapp.config.json's
+          # platform.apiRuntime (node:22, D18) -- both name the managed-functions runtime.
+          pnpm exec swa deploy ./frontend/dist \
+            --api-location ./api/__deploy \
+            --deployment-token "$TOKEN" \
+            --env production \
+            --api-language node \
+            --api-version 22

@@ -23,6 +23,8 @@ Acceptance: prod resource group, storage account (blobs+table, soft-delete+versi
 - As the owner, I want `main` to deploy to prod while `develop` keeps deploying to dev.
 Acceptance: workflow deploys prod on `main`; prod secrets/config separate from dev; human-gated merge enforced; **the prod-bound `staticwebapp.config.json` already contains the custom-Entra-provider auth gate (D22) — the first prod deploy is never anonymous-reachable, never gated by the pre-configured AAD provider.**
 
+**Consider (preview-slot prod validation):** the Sprint 2.2 dev workflow deploys to the SWA's `production` slot directly. For prod, consider deploying first to a SWA **named/preview environment** (a separate slot/URL), validating there, then promoting to the `production` slot — a safer "validate before the main URL changes" flow. Caveats to weigh at planning: SWA **named environments require Standard tier** (interacts with the D26 SWA-tier decision made in 9.1 — Free tier only has `production` + auto PR previews), and SWA has **no atomic slot-swap** like App Service, so "promote" means redeploying the validated build to `production`, not a swap. Worth it once prod is real and a bad deploy would disrupt the kids' live site.
+
 ## Sprint 9.3 — First promotion + prod smoke test  **[Both]**
 - As the owner, I want to promote dev→prod once and confirm the full loop in prod.
 Acceptance: first PR develop→main merged by human; prod deploy succeeds; upload→ready→play works in prod; budget alert live.

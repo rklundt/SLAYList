@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/src/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -13,7 +13,6 @@
     "start": "func start"
   },
   "dependencies": {
-    "@azure/functions": "^4.5.0",
-    "@slaylist/shared": "workspace:*"
+    "@azure/functions": "4.16.0"
   }
 }

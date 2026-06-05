@@ -16,6 +16,7 @@ Active during every session — read in this order on session start:
 
 When relevant to the current task:
 
+- **`docs/DEPLOYMENT_FLOW.md`** — diagrammed reference for the CI/CD deploy pipeline (OIDC push-to-live) and the runtime D22 auth gate (what an anonymous vs. signed-in request hits). The "how a push reaches Azure / what a visitor hits" companion to ARCHITECTURE.md's app-data-flow diagram
 - **`.sprints/epic-N-<name>/SPRINTS.md`** — the current epic's sprint file with user stories + acceptance criteria
 - **`.claude/commands/{start-sprint,wrap-sprint,close-sprint}.md`** — the slash-command bodies (contain the STOP CHECK for `/wrap-sprint` and the Phase A/B split for `[Human, guided]` sprints)
 - **`infra/`** — canonical home for naming convention (`naming-convention.md`), gitignored real-values notes (`dev-resources.md`, `prod-resources.md`), and future restore-procedure runbooks. NOT `docs/infra/` — the canonical location is at repo root per Sprint 0.2 / `docs/DEVELOPER_GUIDE.md` repo layout
