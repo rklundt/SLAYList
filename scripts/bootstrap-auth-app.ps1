@@ -204,6 +204,29 @@ if ($appId -and $appId -ne '<new-app-id>') {
   }
 } elseif ($DryRun) { Note "[dry-run] would: create the service principal" }
 
+# --- 3b. Tag the SP so it shows under the portal's DEFAULT Enterprise Applications filter ---
+# The portal adds the WindowsAzureActiveDirectoryIntegratedApp tag to UI-registered apps; the CLI does
+# NOT, so a script-created SP is hidden unless you switch the filter to "All applications". Purely
+# cosmetic -- the SP authenticates and authorizes identically with or without the tag.
+Info "3b. Tag SP for default Enterprise Applications visibility"
+$integratedTag = 'WindowsAzureActiveDirectoryIntegratedApp'
+if ($appId -and $appId -ne '<new-app-id>') {
+  $spObjId = az ad sp show --id $appId --query id -o tsv --only-show-errors 2>$null
+  $curTags = az ad sp show --id $appId --query tags -o tsv --only-show-errors 2>$null
+  if ($curTags -match $integratedTag) {
+    Ok "already tagged"
+  } elseif ($spObjId) {
+    Do-Or-Show "az rest PATCH servicePrincipal tags += $integratedTag" {
+      $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "sptags-auth-$Env.json"
+      Set-Content -Path $tmp -Value ('{"tags":["' + $integratedTag + '"]}') -Encoding ascii
+      az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$spObjId" --headers "Content-Type=application/json" --body "@$tmp" --only-show-errors | Out-Null
+      $script:tagRc = $LASTEXITCODE
+      Remove-Item $tmp -Force
+    }
+    if (-not $DryRun) { $global:LASTEXITCODE = $script:tagRc; Assert-LastOk "tag SP"; Ok "tagged (visible in default Enterprise Applications view)" }
+  }
+} elseif ($DryRun) { Note "[dry-run] would: tag the SP $integratedTag for default Enterprise Apps visibility" }
+
 Stop-If-Past 4
 # --- 4. Require user assignment (closes Epic 2's any-Microsoft-account gap) ---
 Info "4. Require user assignment (appRoleAssignmentRequired=true)"
