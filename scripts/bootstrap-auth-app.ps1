@@ -150,6 +150,10 @@ Ok "az: $($acct.user.name) / tenant $tenantId"
 Write-Host ""
 
 # --- 1. App registration (idempotent; duplicate-name guard) ---
+# PLAIN ENGLISH: this creates the app's identity in our directory. --sign-in-audience AzureADMyOrg makes
+# it SINGLE-TENANT -- only accounts in OUR Entra directory can even be considered (the rest of the
+# world's Microsoft accounts are shut out right here). Step 4 then narrows "our directory" down to just
+# the assigned family members. (This single-tenant choice is the first of the two "family only" layers.)
 Info "1. Entra app registration '$AppDisplayName'"
 $appIds = @(az ad app list --display-name $AppDisplayName --query "[].appId" -o tsv --only-show-errors 2>$null)
 if ($appIds.Count -gt 1) {
@@ -228,7 +232,18 @@ if ($appId -and $appId -ne '<new-app-id>') {
 } elseif ($DryRun) { Note "[dry-run] would: tag the SP $integratedTag for default Enterprise Apps visibility" }
 
 Stop-If-Past 4
-# --- 4. Require user assignment (closes Epic 2's any-Microsoft-account gap) ---
+# --- 4. Require user assignment (the gatekeeper switch -- closes Epic 2's any-Microsoft-account gap) ---
+# PLAIN ENGLISH (for non-Azure folks): this flips ONE switch on the app's sign-in behaviour.
+#   - OFF (the default): anyone in our Entra directory could sign in -- no invite needed.
+#   - ON  (what we set): ONLY people an admin has explicitly assigned to the app (Sprint 3.2) can sign
+#     in; everyone else is turned away at the login screen.
+# Two layers stack to get us to "family only":
+#   (a) single-tenant audience from step 1 already shuts out the whole outside world (only OUR directory),
+#   (b) THIS switch then trims it down to just the specific family members we hand-pick and assign.
+# It also means signing in REQUIRES having a role -- which is exactly how the role ends up in the user's
+# token for the API to read.
+# Expect: right after this, NOBODY can sign in yet (nobody's assigned). Sprint 3.2 assigns the first
+# person; the live site is unaffected until Sprint 3.3 points it at this app.
 Info "4. Require user assignment (appRoleAssignmentRequired=true)"
 Note "Only users an admin has assigned a role (Sprint 3.2) can sign in. None assigned yet -- expected."
 if ($appId -and $appId -ne '<new-app-id>') {
