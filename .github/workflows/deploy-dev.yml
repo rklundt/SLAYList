@@ -115,5 +115,4 @@ jobs:
             --deployment-token "$TOKEN" \
             --env production \
             --api-language node \
-            --api-version 22 \
-            --verbose=silly
+            --api-version 22
