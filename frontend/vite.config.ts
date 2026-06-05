@@ -43,7 +43,11 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // No source maps in the production bundle: the frontend is served to browsers, so a shipped
+    // .js.map lets anyone reconstruct our TS source straight from the live site. The repo is public
+    // (AGPL) so the source is available the proper way; we just don't hand it out from the deployed
+    // app. Flip to true locally if you need to debug a production build.
+    sourcemap: false,
   },
   test: {
     // happy-dom over jsdom: faster startup, smaller deps, sufficient for the
