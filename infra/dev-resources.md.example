@@ -259,6 +259,27 @@ section above as a break-glass fallback — never in GitHub Secrets, never refer
 **Attestation (fill after Phase B):** date run; `gh variable list` + `gh secret list` output (secrets must
 show ONLY the two above — no SWA-deploy-token secret); confirmation a re-run reported everything already-exists (idempotent).
 
+## User-auth app registration (Sprint 3.1 — D2/D20/D22/D41)
+
+Provisioned by `scripts/bootstrap-auth-app.ps1` (idempotent; re-run any time). This is the custom Entra app registration the Static Web App uses as its login provider (Epic 3), **separate per environment** (D7) — `slaylist-auth-dev` now, `slaylist-auth-prod` at Epic 9. It defines the three app roles whose `value` strings must equal `shared/src/types.ts` `ROLES`.
+
+- **App registration display name:** `slaylist-auth-dev`
+- **App (client) ID:** `<auth-app-client-id>` — captured after running the script; Sprint 3.3 wires it into the SWA custom-provider config (NOT committed).
+- **Tenant ID:** `<tenant-id>` — same tenant as the account identity above.
+- **App roles (D20 — library-scoped; a single `admin`, NOT a platform/global admin):** role IDs are fixed in the script for idempotency.
+
+| Role `value` | Display name | Fixed role ID (defined in the script) |
+|---|---|---|
+| `listener` | Listener | `7e3a1c54-9b2d-4f86-a1b0-3c5d7e9f1a2b` |
+| `uploader` | Uploader | `8f4b2d65-0c3e-4a97-b2c1-4d6e8f0a2b3c` |
+| `admin` | Admin | `9a5c3e76-1d4f-4ba8-83d2-5e7f9a1b3c4d` |
+
+- **User assignment required:** `true` (`appRoleAssignmentRequired` on the service principal) — only users an admin assigns a role (Sprint 3.2) can sign in. This is what closes Epic 2's any-Microsoft-account gap.
+
+**Deferred to Sprint 3.3 (the SWA-wiring sprint), NOT created here:** the client secret (stored as a SWA app setting, never in the repo) and the redirect URI (the dev SWA's `/.auth` callback). **Sprint 3.2** assigns a family member a role.
+
+**Attestation (fill after Phase B):** date run; `az ad app show --id <appId> --query "appRoles[].value"` returned exactly `admin`/`listener`/`uploader`; `appRoleAssignmentRequired` = `true`; a re-run reported already-exists (idempotent); appId + tenantId recorded above.
+
 ## Useful KQL queries
 
 (Saved per `docs/DEVELOPER_GUIDE.md` "Observability" — "save useful KQL queries in `infra/` notes so they're not re-derived under pressure.")
