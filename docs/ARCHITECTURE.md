@@ -2,6 +2,8 @@
 
 This is the settled architecture. It was arrived at deliberately. Before changing anything here, read `DECISIONS.md` — most "obvious improvements" were already considered.
 
+> **Scope — what this doc is (and isn't).** This is the **system architecture**: which Azure resources exist and why, how *app data* flows through them (upload → transcode → ready), the data model, observability, and why dev/prod are separated. It owns the *design intent* of the branch→environment mapping (`develop`→dev, `main`→prod). It does **not** cover the *mechanics* of how a push actually deploys, or how a live request is authenticated — that operational layer (CI/CD pipeline + the D22 runtime auth gate) lives in [`DEPLOYMENT_FLOW.md`](DEPLOYMENT_FLOW.md).
+
 ## The goal (never lose sight of this)
 
 A private, login-gated family music library. Kids upload songs they made, play them on their devices. Not commercial, not public, not for sale. Small now (~10 users, 1–2 uploaders). Should be cheap at rest and not painful to grow.
@@ -71,6 +73,8 @@ A private, login-gated family music library. Kids upload songs they made, play t
 - **Container App: two separate apps** (dev + prod), not channels in one. Scale-to-zero makes two ≈ the cost of one.
 - Branches: `develop` deploys to dev, `main` deploys to prod. Human gates both merges.
 - **Infrastructure as code (D39):** the landing zone is captured as **env-neutral Bicep** under `infra/bicep/` (modules orchestrated by `main.bicep`). There is no per-environment folder — the environment is the `env` parameter (`dev`/`prod`/`validate`), so prod (Sprint 9.1) is the same templates with `env=prod`, not a separate copy. This is what keeps the "same shape, separate accounts" promise honest. Every infra change updates the Bicep in the same sprint; portal-only drift is forbidden (see CLAUDE.md guardrail).
+
+> **The CI/CD pipeline and the runtime auth gate have their own diagrammed reference: [`DEPLOYMENT_FLOW.md`](DEPLOYMENT_FLOW.md).** This section is *why* dev/prod are separate; `DEPLOYMENT_FLOW.md` is *how* a push reaches the live SWA (OIDC deploy flow) and *what* an anonymous request hits (the D22 gate).
 
 ## Data model (song record)
 
