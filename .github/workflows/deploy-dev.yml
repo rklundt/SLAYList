@@ -104,10 +104,12 @@ jobs:
           echo "::add-mask::$TOKEN"
           # Deploy pre-built content to the dev SWA's "production" slot (its main URL -- this is the
           # DEV site, not prod). The gated staticwebapp.config.json is inside frontend/dist (D22).
-          # Use `pnpm dlx` (not `pnpm exec`): the assemble step above ran `pnpm deploy --prod`, which
-          # prunes the workspace node_modules to production-only and removes the swa CLI devDependency.
-          # dlx fetches the CLI in an isolated context, immune to that prune. Pinned to match the repo.
-          pnpm dlx @azure/static-web-apps-cli@2.0.9 deploy ./frontend/dist \
+          # `pnpm exec` uses the lockfile-pinned @azure/static-web-apps-cli devDependency: the
+          # assemble step installs into a separate folder (api/__deploy) and does NOT prune the
+          # workspace deps, so the swa CLI is present.
+          # NOTE: --api-version must stay in sync with staticwebapp.config.json's
+          # platform.apiRuntime (node:22, D18) -- both name the managed-functions runtime.
+          pnpm exec swa deploy ./frontend/dist \
             --api-location ./api/__deploy \
             --deployment-token "$TOKEN" \
             --env production \
