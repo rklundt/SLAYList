@@ -16,3 +16,34 @@ allowBuilds:
   azure-functions-core-tools: true
   esbuild: true
   keytar: true
+
+# `overrides` force patched versions of vulnerable transitive deps (Sprint 3.1.5 security triage).
+# Every one is scope=development, pulled ONLY by dev tooling (azurite, @azure/static-web-apps-cli);
+# none ship to any deployed environment (D7). The deployed API is built from an isolated
+# --ignore-workspace install that doesn't see these; the frontend uses fetch, not axios. So the only
+# risk is local-only (could break azurite / the dev stack) -- verified working before committing
+# (build, tests, azurite blob/queue/table round-trips). See SECURITY.md / docs/BACKLOG.md.
+#
+# FORM -- `<pkg>@<target>` selector with an EXACT target, deliberately:
+#   * EXACT (not a range): these force-patch azurite's fragile legacy tree, so we pin the EXACT
+#     versions we verified rather than let a future untested version float in (which would re-open
+#     the "did this break azurite?" question on every `pnpm update`). Determinism is the point.
+#   * `@<target>` SELECTOR: only the vulnerable (below-target) instances are overridden. A future
+#     runtime package that legitimately depends on a >= target version is left untouched -- so these
+#     dev-tree pins can never accidentally DOWNGRADE healthy runtime code.
+#
+# MAINTENANCE -- exact pins mean a NEW CVE in a pinned version won't auto-resolve. That's by design:
+# Dependabot re-alerts on the pinned version (it's the regression detector); when it does, bump that
+# target DELIBERATELY and RE-VERIFY the azurite blob/queue/table round-trip (azurite is the fragile
+# dependent). Same drill when bumping azurite / @azure/static-web-apps-cli themselves.
+overrides:
+  'axios@<1.17.0': 1.17.0
+  'tmp@<0.2.7': 0.2.7
+  '@azure/identity@<4.13.1': 4.13.1
+  'tough-cookie@<6.0.1': 6.0.1
+  'xml2js@<0.6.2': 0.6.2
+  # uuid is DELIBERATELY NOT overridden: the only patched line (>=11.1.1) dropped the `uuid/v4`
+  # subpath export that azurite's legacy @azure/ms-rest-js@1.11.2 does `require('uuid/v4')` against,
+  # so forcing it crashes azurite at load (ERR_PACKAGE_PATH_NOT_EXPORTED). The uuid advisory
+  # (GHSA-w5hq-g745-h8pq, buffer-bounds when `buf` is passed) is dev-only AND unreachable in our use
+  # (ms-rest-js never passes attacker-controlled buf). Accepted + dismissed, not patched. See SECURITY.md.
