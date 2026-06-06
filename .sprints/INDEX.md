@@ -57,7 +57,7 @@ The core loop (4→5→6→7) is split into separately-testable layers on purpos
 - **Exit:** push to `develop` auto-deploys the gated skeleton to dev; loads on the internet behind auth. ✅ met at 2.3.
 
 ### Epic 3 — Identity (Entra + roles, the gate)
-- ⬜ 3.1 Entra app registration + define 3 roles (human-guided)
+- ✅ 3.1 Entra app registration + define 3 roles (human-guided) — `slaylist-auth-dev` (per-env, D42) created by `scripts/bootstrap-auth-app.ps1`: three app roles `listener`/`uploader`/`admin` (values match `shared` `ROLES`; D20 single admin), single-tenant + `appRoleAssignmentRequired=true`. SP auto-tagged for default Enterprise Apps visibility. Client secret + redirect URI + SWA wiring + the D22 gate swap deferred to 3.3 (gate untouched this sprint). appId/tenantId in gitignored notes.
 - ⬜ 3.2 Shared family account + role assignment
 - ⬜ 3.3 Wire SWA auth; API reads role from token
 - ⬜ 3.4 Login gate + "your role is X" proof
