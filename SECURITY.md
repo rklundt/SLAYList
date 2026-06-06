@@ -8,32 +8,32 @@ A response acknowledging the report is the goal within a few days; this is a per
 
 ## A note on the open Dependabot alerts
 
-If you're browsing this repository and notice a number of open Dependabot alerts, that's expected and triaged — not neglect. Here's the picture as of the most recent triage:
+If you're browsing this repository and notice Dependabot alerts, they're triaged — not neglect. Every alert to date has been a **dev-only transitive dependency** (`scope=development`) of Azure development tooling, never a runtime/deployed dependency. Here's the picture as of the **Sprint 3.1.5 security triage**:
 
 ### What was fixed
 
-The `happy-dom` advisories (including the Critical script-evaluation RCE, CVE-2025-61927) were patched by bumping `happy-dom` to `^20.0.0` (see PR #6 and the implementation note under D23 in `docs/DECISIONS.md`).
+- The `happy-dom` advisories (including the Critical script-evaluation RCE, CVE-2025-61927) were patched by bumping `happy-dom` to `^20.0.0` (PR #6; implementation note under D23 in `docs/DECISIONS.md`).
+- **Sprint 3.1.5 triage:** the bulk of the dev-tool transitive advisories — the entire `axios` SSRF / credential-leak / prototype-pollution family, plus `tmp`, `@azure/identity`, `tough-cookie`, and `xml2js` — were patched by forcing fixed versions via **`overrides` in `pnpm-workspace.yaml`**. Because these are dev-only, the overrides were applied **empirically and verified not to break the tooling**: a clean build, the full test suite, the `swa`/`func` CLIs loading, and azurite blob/queue/table round-trips all pass against the bumped versions. The overrides touch only the dev tree — the deployed API is built from an isolated `--ignore-workspace` install that doesn't see them, and the frontend uses `fetch`, not axios.
 
 ### What's left, and why it's not "open and ignored"
 
-The remaining alerts are **dev-only transitive dependencies** of three Azure development tools:
+After the 3.1.5 overrides, the only remaining alert is **`uuid`** (2 instances, medium — GHSA-w5hq-g745-h8pq, a missing buffer-bounds check when a `buf` argument is passed). It **cannot be patched**: the fix lands in `uuid` >= 11.1.1, which removed the `uuid/v4` subpath export that azurite's legacy `@azure/ms-rest-js@1.11.2` does `require('uuid/v4')` against — forcing the patched `uuid` crashes azurite at load (`ERR_PACKAGE_PATH_NOT_EXPORTED`, verified). So `uuid` stays at the version azurite needs.
 
-- **`azurite`** — local Azure Storage emulator, used only by `pnpm dev` to satisfy the Azure Functions runtime's storage health check (see D35 in `docs/DECISIONS.md`).
-- **`@azure/static-web-apps-cli`** — used during deploy verification only.
-- **`azure-functions-core-tools`** — provides the local `func` binary used by `pnpm dev` to host the API.
+This is acceptable because the advisory is:
 
-All three are **devDependencies**, present only on developer machines and in CI build steps. They are **not bundled into any deployed artifact**, never run in production, never see real user data, and are not reachable from any URL the app exposes. Production data-plane separation is documented in D7 (`docs/DECISIONS.md`): dev and prod data stores are physically separate accounts; these dev tools never touch prod at all.
+- **dev-only** — `uuid` here is a transitive of **`azurite`** (the local Azure Storage emulator, D35), a devDependency never bundled into any deployed artifact, never run in production, never near real user data (D7 keeps dev and prod data stores physically separate).
+- **unreachable in our use** — triggering it requires calling `uuid` with an attacker-controlled `buf`; ms-rest-js never passes one, and our usage exposes no such path.
 
-All three packages are also **already at their latest published npm versions** as of the most recent triage. The vulnerable transitive ranges (axios SSRF/credential-leak family; `@azure/identity` / `@azure/msal-node` ranges) are pinned by the upstream maintainers — fixes are **gated on upstream releases**, not on changes the maintainer of this repo can make today.
+These 2 alerts are **dismissed in GitHub with reason "Vulnerable code is not actually used"**, not left silently open.
 
 ### How this is tracked
 
-The residual alerts are tracked as an explicit "Emergent" entry in `docs/BACKLOG.md` with concrete re-triage triggers:
+Tracked as an "Emergent" entry in `docs/BACKLOG.md`:
 
-- Before Epic 1.1 (when Application Insights is wired) — re-run `pnpm audit` and check for updated dev-tool versions.
-- Before Epic 2.2 (when the first deploy workflow lands) — same check, with extra attention to anything `@azure/static-web-apps-cli` pulls during deploy.
-- **Escalation rule:** if a later sprint ever puts any of these packages on a *runtime* code path (rather than dev/CI-only), or if a Dependabot alert escalates to Critical on a runtime-reachable path, re-triage immediately rather than waiting for the scheduled trigger.
+- **The overrides carry a maintenance cost** — they pin transitive deps, so a stale override can hold a dep *back*. When `azurite` / `@azure/static-web-apps-cli` update their own dependency ranges, re-check the overrides and **re-verify the dev stack** (azurite round-trip + build + tests).
+- **`uuid` re-check trigger:** if azurite ever drops `@azure/ms-rest-js@1.x` (or it stops using the `uuid/v4` subpath), force the patched `uuid` and remove the dismissal.
+- **Escalation rule:** if any of these packages ever lands on a *runtime* code path (not dev/CI-only), re-triage immediately rather than waiting.
 
 ### Summary
 
-The open-count number on the Security tab is what GitHub reports verbatim from npm advisories regardless of reachability. The substantive read is: the only runtime-reachable advisory found so far (happy-dom) was fixed; the remainder are dev tooling waiting on upstream and are explicitly tracked. If that picture changes, this note will too.
+The Security-tab count is what GitHub reports verbatim from npm advisories regardless of reachability. The substantive read: every advisory has been dev-only; the runtime-reachable one ever found (happy-dom) was fixed; Sprint 3.1.5 patched the rest of the dev-tool family that *could* be patched without breaking the emulator; the lone holdout (`uuid`) is dev-only, unreachable, and dismissed with reason. If that picture changes, this note will too.

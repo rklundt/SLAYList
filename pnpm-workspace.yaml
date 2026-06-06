@@ -16,3 +16,21 @@ allowBuilds:
   azure-functions-core-tools: true
   esbuild: true
   keytar: true
+
+# `overrides` force patched versions of vulnerable transitive deps (Sprint 3.1.5 security triage).
+# Every one is scope=development, pulled ONLY by dev tooling (azurite, @azure/static-web-apps-cli);
+# none ship to any deployed environment (D7). The deployed API is built from an isolated
+# --ignore-workspace install that doesn't see these; the frontend uses fetch, not axios. So the only
+# risk is local-only (could break azurite / the dev stack) -- verified working before committing.
+# See SECURITY.md / docs/BACKLOG.md for the per-advisory triage.
+overrides:
+  axios: 1.17.0
+  tmp: 0.2.7
+  '@azure/identity': 4.13.1
+  tough-cookie: 6.0.1
+  xml2js: 0.6.2
+  # uuid is DELIBERATELY NOT overridden: the only patched line (>=11.1.1) dropped the `uuid/v4`
+  # subpath export that azurite's legacy @azure/ms-rest-js@1.11.2 does `require('uuid/v4')` against,
+  # so forcing it crashes azurite at load (ERR_PACKAGE_PATH_NOT_EXPORTED). The uuid advisory
+  # (GHSA-w5hq-g745-h8pq, buffer-bounds when `buf` is passed) is dev-only AND unreachable in our use
+  # (ms-rest-js never passes attacker-controlled buf). Accepted + dismissed, not patched. See SECURITY.md.

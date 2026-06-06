@@ -4,6 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  axios: 1.17.0
+  tmp: 0.2.7
+  '@azure/identity': 4.13.1
+  tough-cookie: 6.0.1
+  xml2js: 0.6.2
+
 importers:
 
   .:
@@ -152,10 +159,6 @@ packages:
     resolution: {integrity: sha512-cwLld7tRi1VLYNdm1evgS9n8ABP/e+0uLjRO++OjM/kigERG80OfFRRMbag/vpXUzCtda83lDiuCvcwPlxgwZw==}
     engines: {node: '>=20.0'}
 
-  '@azure/identity@3.4.2':
-    resolution: {integrity: sha512-0q5DL4uyR0EZ4RXQKD8MadGH6zTIcloUoS/RVbCpNpej4pwte0xpqYxk8K97Py2RiuUvI7F4GXpoT4046VfufA==}
-    engines: {node: '>=14.0.0'}
-
   '@azure/identity@4.13.1':
     resolution: {integrity: sha512-5C/2WD5Vb1lHnZS16dNQRPMjN6oV/Upba+C9nBIs15PmOi6A3ZGs4Lr2u60zw4S04gi+u3cEXiqTVP7M4Pz3kw==}
     engines: {node: '>=20.0.0'}
@@ -175,10 +178,6 @@ packages:
   '@azure/ms-rest-js@1.11.2':
     resolution: {integrity: sha512-2AyQ1IKmLGKW7DU3/x3TsTBzZLcbC9YRI+yuDPuXAQrv3zar340K9wsxU413kHFIDjkWNCo9T0w5VtwcyWxhbQ==}
 
-  '@azure/msal-browser@3.30.0':
-    resolution: {integrity: sha512-I0XlIGVdM4E9kYP5eTjgW8fgATdzwxJvQ6bm2PNiHaZhEuUz47NYw1xHthC9R+lXz4i9zbShS0VdLyxd7n0GGA==}
-    engines: {node: '>=0.8.0'}
-
   '@azure/msal-browser@5.11.0':
     resolution: {integrity: sha512-zkGNYS3TwY8lUpPIafAmsFCYZbgFixY9y/LZB9GUg0IILoHTqpN26j5OrkL1AQThh/YdZsawe4iWXfp85lFVxg==}
     engines: {node: '>=0.8.0'}
@@ -190,10 +189,6 @@ packages:
   '@azure/msal-common@16.6.2':
     resolution: {integrity: sha512-hQjjsekAjB00cM1EmatWJlzhEoK2Qhz7Rj5gvM6tYf8iL7RM3tkxlpU9fG0+ofkulzg9AEEA6dIEnSmDr5ZqUA==}
     engines: {node: '>=0.8.0'}
-
-  '@azure/msal-node@2.16.3':
-    resolution: {integrity: sha512-CO+SE4weOsfJf+C5LM8argzvotrXw252/ZU6SM2Tz63fEblhH1uuVaaO4ISYFuN4Q6BhTo7I3qIdi8ydUQCqhw==}
-    engines: {node: '>=16'}
 
   '@azure/msal-node@5.2.2':
     resolution: {integrity: sha512-toS+2AePxqyzb0YOKttDOOiSl3jrkK9aiqIvpurpis0O34QcIS5gToqrgT39p04Dpxw3YoUU0lxJKTpSFFfA6Q==}
@@ -1170,14 +1165,8 @@ packages:
     resolution: {integrity: sha512-NZKeq9AfyQvEeNlN0zSYAaWrmBffJh3IELMZfRpJVWgrpEbtEpnjvzqBPf+mxoI287JohRDoa+/nsfqqiZmF6g==}
     engines: {node: '>= 6.0.0'}
 
-  axios@0.21.4:
-    resolution: {integrity: sha512-ut5vewkiu8jjGBdqpM44XxjuCjq9LAKeHVmoVfHVzy8eHgxxq8SbAVQNovDA8mVi05kP0Ea/n/UzcSHcTJQfNg==}
-
-  axios@0.27.2:
-    resolution: {integrity: sha512-t+yRIyySRTp/wua5xEr+z1q60QmLq8ABsS5O9Me1AsE5dfKqgnCFzwiCZZ/cGNd1lq4/7akDWMxdhVlucjmnOQ==}
-
-  axios@1.16.1:
-    resolution: {integrity: sha512-caYkukvroVPO8KrzuJEb50Hm07KwfBZPEC3VeFHTsqWHvKTsy54hjJz9BS/cdaypROE2rH6xvm9mHX4fgWkr3A==}
+  axios@1.17.0:
+    resolution: {integrity: sha512-J8SwNxprqqpbfenehxWYXE7CW+wM1BB4w3+N+g+/Wx40xM4rsLrfPmHHxSWIxJLYDgSY/HqlFPIYb2/S3rxafw==}
 
   azure-functions-core-tools@4.11.0:
     resolution: {integrity: sha512-RrJN+9ZDfiDKYqqHWa1WjPVWC2CyHAjkppjhje5OSr3tpiISXlXhpOa2OjgLQHocDyKSNk3bFb1jKJnJJpCRHA==}
@@ -2626,9 +2615,6 @@ packages:
     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
     engines: {node: '>=10'}
 
-  psl@1.15.0:
-    resolution: {integrity: sha512-JZd3gMVBAVQkSs6HdNZo9Sdo0LNcQeMNP3CozBJb3JYC/QUYZTnKxP+f8oWRX4rHP5EurWxqAHTSwUCjlNKa1w==}
-
   pump@3.0.4:
     resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
 
@@ -3061,9 +3047,16 @@ packages:
     resolution: {integrity: sha512-Bf+ILmBgretUrdJxzXM0SgXLZ3XfiaUuOj/IKQHuTXip+05Xn+uyEYdVg0kYDipTBcLrCVyUzAPz7QmArb0mmw==}
     engines: {node: '>=14.0.0'}
 
-  tmp@0.0.33:
-    resolution: {integrity: sha512-jRCJlojKnZ3addtTOjdIqoRuPEKBvNXcGYqzO6zWZX8KfKEpnGY5jfggJQ3EjKuu8D4bJRr0y+cYJFmYbImXGw==}
-    engines: {node: '>=0.6.0'}
+  tldts-core@7.4.2:
+    resolution: {integrity: sha512-nwEyF4vl4RSJjwSjBUmOSxc3BFPoIFdlRthJ6e+5v9P3bHNsoD06UjuqMUspqp7vsEZ1beaHi1km+optiE17yA==}
+
+  tldts@7.4.2:
+    resolution: {integrity: sha512-kCwffuaH8ntKtygnWe1b4BJKWiCUH30n5KfoTr6IchcXOwR7chAOFJxFrH3vjANafUYrIA4a7SDL+nn7SiR4Sw==}
+    hasBin: true
+
+  tmp@0.2.7:
+    resolution: {integrity: sha512-e0votIpp4Uo2AJYSzVHV6xCcawuiez3DzqDAbrTc3YxBkplN6e+dM13ZeIcZnDg/QpSuU2zfZ3rzwY8ukEnaXw==}
+    engines: {node: '>=14.14'}
 
   to-readable-stream@2.1.0:
     resolution: {integrity: sha512-o3Qa6DGg1CEXshSdvWNX2sN4QHqg03SPq7U6jPXRahlQdl5dK8oXjkU/2/sGrnOZKeGV1zLSO8qPwyKklPPE7w==}
@@ -3076,9 +3069,9 @@ packages:
   toposort-class@1.0.1:
     resolution: {integrity: sha512-OsLcGGbYF3rMjPUf8oKktyvCiUxSbqMMS39m33MAjLTC1DVIH6x3WSt63/M77ihI09+Sdfk1AXvfhCEeUmC7mg==}
 
-  tough-cookie@2.5.0:
-    resolution: {integrity: sha512-nlLsUzgm1kfLXSXfRZMc1KLAugd4hqJHDTvc2hDIwS3mZAfMEuMbc03SujMF+GEcpaX/qboeycw6iO8JwVv2+g==}
-    engines: {node: '>=0.8'}
+  tough-cookie@6.0.1:
+    resolution: {integrity: sha512-LktZQb3IeoUWB9lqR5EWTHgW/VTITCXg4D21M+lvybRVdylLrRMnqaIONLVb5mav8vM19m44HIcGq4qASeu2Qw==}
+    engines: {node: '>=16'}
 
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
@@ -3411,10 +3404,6 @@ packages:
     resolution: {integrity: sha512-GCPAHLvrIH13+c0SuacwvRYj2SxJXQ4kaVTT5xgL3kPrz56XxkF21IGhjSE1+W0aw7gpBWRGXLCPnPby6lSpmQ==}
     engines: {node: '>=12'}
 
-  xml2js@0.4.23:
-    resolution: {integrity: sha512-ySPiMjM0+pLDftHgXY4By0uswI3SPKLDw/i3UXbnO8M/p28zqexCUoPmQFrYD+/1BzhGJSs2i1ERWKJAtiLrug==}
-    engines: {node: '>=4.0.0'}
-
   xml2js@0.6.2:
     resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
     engines: {node: '>=4.0.0'}
@@ -3594,25 +3583,6 @@ snapshots:
       '@azure/functions-extensions-base': 0.3.0
       cookie: 0.7.2
 
-  '@azure/identity@3.4.2':
-    dependencies:
-      '@azure/abort-controller': 1.1.0
-      '@azure/core-auth': 1.10.1
-      '@azure/core-client': 1.10.1
-      '@azure/core-rest-pipeline': 1.23.0
-      '@azure/core-tracing': 1.3.1
-      '@azure/core-util': 1.13.1
-      '@azure/logger': 1.3.0
-      '@azure/msal-browser': 3.30.0
-      '@azure/msal-node': 2.16.3
-      events: 3.3.0
-      jws: 4.0.1
-      open: 8.4.2
-      stoppable: 1.1.0
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - supports-color
-
   '@azure/identity@4.13.1':
     dependencies:
       '@azure/abort-controller': 2.1.2
@@ -3670,20 +3640,16 @@ snapshots:
   '@azure/ms-rest-js@1.11.2':
     dependencies:
       '@azure/core-auth': 1.10.1
-      axios: 0.21.4
+      axios: 1.17.0
       form-data: 2.5.5
-      tough-cookie: 2.5.0
+      tough-cookie: 6.0.1
       tslib: 1.14.1
       tunnel: 0.0.6
       uuid: 3.4.0
-      xml2js: 0.4.23
+      xml2js: 0.6.2
     transitivePeerDependencies:
       - debug
       - supports-color
-
-  '@azure/msal-browser@3.30.0':
-    dependencies:
-      '@azure/msal-common': 14.16.1
 
   '@azure/msal-browser@5.11.0':
     dependencies:
@@ -3692,12 +3658,6 @@ snapshots:
   '@azure/msal-common@14.16.1': {}
 
   '@azure/msal-common@16.6.2': {}
-
-  '@azure/msal-node@2.16.3':
-    dependencies:
-      '@azure/msal-common': 14.16.1
-      jsonwebtoken: 9.0.3
-      uuid: 8.3.2
 
   '@azure/msal-node@5.2.2':
     dependencies:
@@ -4563,20 +4523,7 @@ snapshots:
 
   aws-ssl-profiles@1.1.2: {}
 
-  axios@0.21.4:
-    dependencies:
-      follow-redirects: 1.16.0
-    transitivePeerDependencies:
-      - debug
-
-  axios@0.27.2:
-    dependencies:
-      follow-redirects: 1.16.0
-      form-data: 4.0.5
-    transitivePeerDependencies:
-      - debug
-
-  axios@1.16.1:
+  axios@1.17.0:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.5
@@ -4601,7 +4548,7 @@ snapshots:
       '@azure/ms-rest-js': 1.11.2
       applicationinsights: 2.9.8
       args: 5.0.3
-      axios: 0.27.2
+      axios: 1.17.0
       etag: 1.8.1
       express: 4.22.2
       fs-extra: 11.3.5
@@ -5008,7 +4955,7 @@ snapshots:
       password-prompt: 1.1.3
       rimraf: 2.7.1
       sudo-prompt: 8.2.5
-      tmp: 0.0.33
+      tmp: 0.2.7
       tslib: 1.14.1
     transitivePeerDependencies:
       - supports-color
@@ -6219,10 +6166,6 @@ snapshots:
 
   proxy-from-env@2.1.0: {}
 
-  psl@1.15.0:
-    dependencies:
-      punycode: 2.3.1
-
   pump@3.0.4:
     dependencies:
       end-of-stream: 1.4.5
@@ -6700,7 +6643,7 @@ snapshots:
 
   tedious@16.7.1(@azure/core-client@1.10.1):
     dependencies:
-      '@azure/identity': 3.4.2
+      '@azure/identity': 4.13.1
       '@azure/keyvault-keys': 4.10.0(@azure/core-client@1.10.1)
       '@js-joda/core': 5.7.0
       bl: 6.1.6
@@ -6728,9 +6671,13 @@ snapshots:
 
   tinyrainbow@3.1.0: {}
 
-  tmp@0.0.33:
+  tldts-core@7.4.2: {}
+
+  tldts@7.4.2:
     dependencies:
-      os-tmpdir: 1.0.2
+      tldts-core: 7.4.2
+
+  tmp@0.2.7: {}
 
   to-readable-stream@2.1.0: {}
 
@@ -6738,10 +6685,9 @@ snapshots:
 
   toposort-class@1.0.1: {}
 
-  tough-cookie@2.5.0:
+  tough-cookie@6.0.1:
     dependencies:
-      psl: 1.15.0
-      punycode: 2.3.1
+      tldts: 7.4.2
 
   tr46@0.0.3: {}
 
@@ -6908,7 +6854,7 @@ snapshots:
 
   wait-on@7.2.0:
     dependencies:
-      axios: 1.16.1
+      axios: 1.17.0
       joi: 17.13.3
       lodash: 4.18.1
       minimist: 1.2.8
@@ -7037,11 +6983,6 @@ snapshots:
       is-wsl: 3.1.1
 
   xdg-basedir@5.1.0: {}
-
-  xml2js@0.4.23:
-    dependencies:
-      sax: 1.6.0
-      xmlbuilder: 11.0.1
 
   xml2js@0.6.2:
     dependencies:
