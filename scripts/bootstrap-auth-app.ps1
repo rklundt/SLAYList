@@ -124,6 +124,10 @@ if (-not $AppDisplayName) { $AppDisplayName = "$App-auth-$Env" }
 # The three app roles (D20). `value` MUST match shared/src/types.ts ROLES. The `id` GUIDs are fixed
 # (hardcoded) so re-runs are idempotent and Sprint 3.2 role assignments never break -- they are
 # role-definition identifiers, not environment GUIDs, so committing them is fine (D17).
+# NOTE (D20): these roles are app-GLOBAL -- they carry no libraryId. Library-scoped authorization
+# ("can this person act within THIS library") is enforced in the API authz layer (Epic 3.3+), not in
+# the Entra role. Correct for the one library today; multi-library later adds a separate
+# library-membership concept (D20), not more app roles.
 $ROLE_ID_LISTENER = '7e3a1c54-9b2d-4f86-a1b0-3c5d7e9f1a2b'
 $ROLE_ID_UPLOADER = '8f4b2d65-0c3e-4a97-b2c1-4d6e8f0a2b3c'
 $ROLE_ID_ADMIN    = '9a5c3e76-1d4f-4ba8-83d2-5e7f9a1b3c4d'
@@ -174,6 +178,10 @@ if ($DryRun -and -not $appId) { $appId = '<new-app-id>' }
 
 Stop-If-Past 2
 # --- 2. App roles (declarative set; idempotent -- re-asserts the same 3 roles with the same IDs) ---
+# We only ever assert the SAME three roles (same values + IDs), so a plain re-set is safe. CAUTION for
+# future editors: Microsoft Graph REJECTS renaming or removing an app role in a single update while it
+# is still enabled -- you must first PATCH that role to isEnabled=false, then change/remove it in a
+# second update. Adding a brand-new role (e.g. a 4th) is fine in one shot.
 Info "2. App roles: listener, uploader, admin (D20)"
 if ($appId -and $appId -ne '<new-app-id>') {
   Do-Or-Show "az ad app update --id $appId --app-roles <listener,uploader,admin>" {
