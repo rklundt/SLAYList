@@ -280,6 +280,21 @@ Provisioned by `scripts/bootstrap-auth-app.ps1` (idempotent; re-run any time). T
 
 **Attestation (fill after Phase B):** date run; `az ad app show --id <appId> --query "appRoles[].value"` returned exactly `admin`/`listener`/`uploader`; `appRoleAssignmentRequired` = `true`; a re-run reported already-exists (idempotent); appId + tenantId recorded above.
 
+## Family accounts + role assignments (Sprint 3.2 — Model A, D2/D20)
+
+Created via `docs/guides/3.2-family-account-role.md`: the shared family Entra accounts and their app-role assignments on `slaylist-auth-dev`. **Real UPNs + the shared password belong here (this file is gitignored), NEVER in a committed file** (D17). Use non-identifying account names (no kid PII — D21/D32).
+
+| Account (UPN) | Display label | Role | Notes |
+|---|---|---|---|
+| `<family-uploader-account>@<your-tenant>.onmicrosoft.com` | `<non-identifying kids label>` | `uploader` | Shared kids login (Model A) — make / upload / play. |
+| `<admin-account>@<your-tenant>.onmicrosoft.com` | `<non-identifying admin label>` | `admin` | Management + self-test of the gate at 3.3/3.4. |
+
+- **Shared password location:** `<e.g., a password-manager entry>` — avoid plaintext here if you can; at minimum this file is gitignored.
+- **Role IDs (fixed in the 3.1 script — not secret):** uploader `8f4b2d65-0c3e-4a97-b2c1-4d6e8f0a2b3c`, admin `9a5c3e76-1d4f-4ba8-83d2-5e7f9a1b3c4d`.
+- **Delete/reassign:** see the guide's "How to delete / reassign later".
+
+**Attestation (fill after Phase B):** date; both assignments verified via `appRoleAssignedTo` (uploader + admin present); accounts have no license/mailbox (sign-in only); delete/reassign procedure understood. Per-kid private accounts remain the deferred path (BACKLOG).
+
 ## Useful KQL queries
 
 (Saved per `docs/DEVELOPER_GUIDE.md` "Observability" — "save useful KQL queries in `infra/` notes so they're not re-derived under pressure.")
