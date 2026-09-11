@@ -23,6 +23,6 @@
     "azurite": "^3.33.0",
     "concurrently": "^9.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.11"
   }
 }
