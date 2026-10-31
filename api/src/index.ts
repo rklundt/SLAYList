@@ -15,3 +15,4 @@
  */
 
 import './functions/health.js';
+import './functions/me.js';

@@ -77,10 +77,15 @@ jobs:
         # symlinks do NOT survive StaticSitesClient's zip -> upload -> backend-extract, so on Azure's
         # side @azure/functions is unresolvable and ZERO functions register (deploy still reports
         # "succeeded"). A flat layout has no symlinks to break. --ignore-workspace makes it an
-        # isolated install (the api carries no runtime workspace deps); --prod drops devDependencies.
+        # isolated install (the api carries no runtime workspace deps).
         run: |
           mkdir -p api/__deploy
-          cp api/host.json api/package.json api/__deploy/
+          cp api/host.json api/__deploy/
+          # Runtime-only package.json: strip devDependencies. The api's @slaylist/shared devDep is a
+          # `workspace:*` spec that trips the isolated --ignore-workspace install (even with --prod),
+          # and the deployed function doesn't need it -- the shared Role is a type-only import, erased
+          # from the compiled JS (Sprint 3.3).
+          node -e "const p=require('./api/package.json'); delete p.devDependencies; require('fs').writeFileSync('api/__deploy/package.json', JSON.stringify(p,null,2)+'\n')"
           cp -r api/dist api/__deploy/dist
           cd api/__deploy
           pnpm install --prod --node-linker=hoisted --ignore-workspace --no-lockfile
@@ -92,11 +97,23 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Wire connection strings into SWA app settings (D24/D25)
+      - name: Wire app settings into the SWA (conn strings D24/D25; auth client id/secret D43)
         run: |
           az staticwebapp appsettings set -n "$SWA_NAME" -g "$AZURE_RG" --setting-names \
             "APPLICATIONINSIGHTS_CONNECTION_STRING=${{ secrets.APPINSIGHTS_CONNECTION_STRING }}" \
-            "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}"
+            "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+            "AAD_CLIENT_ID=${{ secrets.AAD_CLIENT_ID }}" \
+            "AAD_CLIENT_SECRET=${{ secrets.AAD_CLIENT_SECRET }}"
+
+      - name: Inject the tenant ID into the SWA auth config (kept out of the public repo -- D17)
+        env:
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          # staticwebapp.config.json (Vite copies it into frontend/dist) ships a <TENANT_ID>
+          # placeholder; the real tenant ID is a secret, substituted into the dist copy ONLY, here.
+          # The deployed openIdIssuer must be a literal (it can't reference an app setting), so this
+          # build-time substitution is how single-tenant login works without committing the GUID.
+          node -e "const fs=require('fs');const f='frontend/dist/staticwebapp.config.json';const s=fs.readFileSync(f,'utf8');if(!s.includes('<TENANT_ID>')){console.error('placeholder <TENANT_ID> not found in '+f);process.exit(1)}fs.writeFileSync(f, s.replace('<TENANT_ID>', process.env.TENANT_ID))"
 
       - name: Deploy to dev SWA (D37 -- OIDC; deploy token fetched at runtime, masked, never stored)
         run: |

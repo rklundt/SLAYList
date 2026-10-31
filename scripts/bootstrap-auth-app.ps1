@@ -42,14 +42,21 @@
                                           Epic 2's any-Microsoft-account gap. No users are assigned yet
                                           (Sprint 3.2 does that) -- so until then nobody can sign in,
                                           which is fine: the gate isn't swapped to this provider until 3.3.
-    5. Verify                          -> print appId / tenantId / the three role values / assignment flag.
+    5. Redirect URI (Sprint 3.3)       -> set the web reply URL to the SWA's /.auth/login/aad/callback
+                                          (derived from the SWA default hostname) so the login round-trip
+                                          can return to the app.
+    6. Client secret (Sprint 3.3)      -> SWA's AAD provider requires a client secret (there is no
+                                          federated-cred option for user-auth, unlike the deploy identity's
+                                          OIDC -- D43). Created only if none exists (printed ONCE; the
+                                          operator stores it as a GitHub secret + gitignored notes),
+                                          24-month expiry; -RotateSecret forces a new one.
+    7. Verify                          -> print roles / assignment flag / redirect URI / secret count + appId.
 
-  WHAT THIS SCRIPT DELIBERATELY DOES NOT DO (deferred to Sprint 3.3, the SWA wiring sprint):
-    - No client secret is created here (3.3 creates it when wiring the SWA provider, and stores it as a
-      SWA app setting -- never in the repo).
-    - No redirect URI is set here (3.3 sets it to the dev SWA's /.auth callback once we wire the provider).
+  WHAT THIS SCRIPT DELIBERATELY DOES NOT DO:
+    - Does NOT store the client secret anywhere but the console -- the operator copies it to the GitHub
+      `dev`-env secret AAD_CLIENT_SECRET + gitignored notes (step 6 prints it once; D17).
     - No role ASSIGNMENT to people (Sprint 3.2, manual/guided).
-    - No change to staticwebapp.config.json (the D22 gate swap is Sprint 3.3; the gate is untouched here).
+    - No change to staticwebapp.config.json (that gate swap is committed code, Sprint 3.3 Phase A).
 
   D17: no secrets/GUIDs hardcoded -- the appId/tenantId are READ from az and printed for the operator to
   capture into gitignored infra/<env>-resources.md; nothing identifying is written to the repo.
@@ -83,11 +90,18 @@
 param(
   [string]$Env = 'dev',
   [string]$App = 'slaylist',
+  [string]$Workload = 'music',
+  [string]$Region = 'use2',
   # Entra app display name. Defaults to slaylist-auth-<env> -- a SEPARATE app per environment (D7).
   [string]$AppDisplayName = '',
+  # SWA reply URL for the login callback. Empty = derive from the env's SWA default hostname (via az).
+  [string]$RedirectUri = '',
+  # Force a NEW client secret even if one already exists (deliberate rotation). Default: create only
+  # when none exists -- secrets can't be re-read, so we don't churn them. See the 24-month note, step 6.
+  [switch]$RotateSecret,
   # Run only steps 1..N and stop. 0 = everything. Steps: 1 app, 2 roles, 3 SP, 4 require-assignment,
-  # 5 verify. Composes with -DryRun.
-  [ValidateRange(0, 5)][int]$RunUpToStep = 0,
+  # 5 redirect-URI, 6 client-secret, 7 verify. Composes with -DryRun.
+  [ValidateRange(0, 7)][int]$RunUpToStep = 0,
   [switch]$DryRun
 )
 
@@ -120,6 +134,8 @@ function Stop-If-Past([int]$n) {
 
 # --- Resolve names ---
 if (-not $AppDisplayName) { $AppDisplayName = "$App-auth-$Env" }
+$resourceGroup = "rg-$Workload-$App-$Env-$Region"
+$swaName = "swa-$Workload-$App-$Env-$Region"
 
 # The three app roles (D20). `value` MUST match shared/src/types.ts ROLES. The `id` GUIDs are fixed
 # (hardcoded) so re-runs are idempotent and Sprint 3.2 role assignments never break -- they are
@@ -267,7 +283,56 @@ if ($appId -and $appId -ne '<new-app-id>') {
 } elseif ($DryRun) { Note "[dry-run] would: set appRoleAssignmentRequired=true" }
 
 Stop-If-Past 5
-# --- 5. Verify + summary ---
+# --- 5. Redirect URI (the SWA login callback) ---
+Info "5. Redirect URI (web reply URL for the SWA login callback)"
+if (-not $RedirectUri) {
+  $swaHost = az staticwebapp show -n $swaName -g $resourceGroup --query defaultHostname -o tsv --only-show-errors 2>$null
+  if ($swaHost) { $RedirectUri = "https://$swaHost/.auth/login/aad/callback" }
+}
+if (-not $RedirectUri) {
+  Note "WARN: could not derive the SWA host (is $swaName created?). Pass -RedirectUri explicitly; skipping."
+} elseif ($appId -and $appId -ne '<new-app-id>') {
+  Note "reply URL: $RedirectUri"
+  $existingUris = @(az ad app show --id $appId --query "web.redirectUris" -o tsv --only-show-errors 2>$null)
+  if ($existingUris -contains $RedirectUri) {
+    Ok "already set"
+  } else {
+    Do-Or-Show "az ad app update --id $appId --web-redirect-uris $RedirectUri" {
+      az ad app update --id $appId --web-redirect-uris $RedirectUri --only-show-errors | Out-Null
+    }
+    if (-not $DryRun) { Assert-LastOk "set redirect URI"; Ok "redirect URI set" }
+  }
+} elseif ($DryRun) { Note "[dry-run] would: set the web redirect URI to the SWA /.auth/login/aad/callback" }
+
+Stop-If-Past 6
+# --- 6. Client secret (Sprint 3.3) -- SWA's AAD provider requires one; no federated-cred option (D43) ---
+# A client secret is SENSITIVE and shown ONCE. Create one only if none exists (secrets can't be re-read,
+# so we don't churn them); pass -RotateSecret to force a new one. The operator stores the printed value
+# as the GitHub `dev`-environment secret AAD_CLIENT_SECRET + gitignored notes -- NEVER in the repo (D17).
+Info "6. Client secret (24-month expiry)"
+if ($appId -and $appId -ne '<new-app-id>') {
+  $secretCount = az ad app credential list --id $appId --query "length(@)" -o tsv --only-show-errors 2>$null
+  if ($secretCount -and [int]$secretCount -gt 0 -and -not $RotateSecret) {
+    Ok "a client secret already exists ($secretCount). Not creating another -- pass -RotateSecret to rotate."
+    Note "If you don't have the value, you must rotate (secrets cannot be re-read)."
+  } else {
+    Do-Or-Show "az ad app credential reset --id $appId --years 2 (prints the value ONCE)" {
+      $secret = az ad app credential reset --id $appId --years 2 --display-name "swa-auth-$Env" --query password -o tsv --only-show-errors
+      $script:secretRc = $LASTEXITCODE
+      if ($secret) {
+        Write-Host ""
+        Write-Host "  >>> CLIENT SECRET (shown ONCE -- store it NOW) <<<" -ForegroundColor Yellow
+        Write-Host "  $secret" -ForegroundColor Yellow
+        Write-Host "  Store as GitHub dev-env secret AAD_CLIENT_SECRET + gitignored notes. NEVER commit it." -ForegroundColor Yellow
+        Write-Host ""
+      }
+    }
+    if (-not $DryRun) { $global:LASTEXITCODE = $script:secretRc; Assert-LastOk "client secret reset"; Ok "client secret created (expires in 24 months)" }
+  }
+} elseif ($DryRun) { Note "[dry-run] would: create a 24-month client secret and print it once" }
+
+Stop-If-Past 7
+# --- 7. Verify + summary ---
 Write-Host ""
 Info "=== Verify ==="
 if ($DryRun) {
@@ -277,10 +342,14 @@ if ($DryRun) {
   az ad app show --id $appId --query "appRoles[].value" -o tsv --only-show-errors 2>$null
   Write-Host "-- user assignment required (expect: true) --" -ForegroundColor DarkGray
   az ad sp show --id $appId --query "appRoleAssignmentRequired" -o tsv --only-show-errors 2>$null
+  Write-Host "-- redirect URIs (expect the SWA /.auth/login/aad/callback) --" -ForegroundColor DarkGray
+  az ad app show --id $appId --query "web.redirectUris" -o tsv --only-show-errors 2>$null
+  Write-Host "-- client secret count (values are write-once) --" -ForegroundColor DarkGray
+  az ad app credential list --id $appId --query "length(@)" -o tsv --only-show-errors 2>$null
   Write-Host ""
   Ok "Auth app bootstrap complete for env=$Env."
-  Note "appId    : $appId"
-  Note "tenantId : $tenantId"
-  Note "CAPTURE these two into gitignored infra/$Env-resources.md (NOT the repo) -- Sprint 3.3 wires them"
-  Note "into the SWA custom provider config. Next: Sprint 3.2 assigns a family member a role."
+  Note "appId    : $appId  -> GitHub dev-env secret AAD_CLIENT_ID + gitignored infra/$Env-resources.md"
+  Note "tenantId : $tenantId  -> already the AZURE_TENANT_ID secret; the workflow substitutes it into the config"
+  Note "The deploy workflow wires AAD_CLIENT_ID/AAD_CLIENT_SECRET into SWA app settings, then a push"
+  Note "deploys. Sign in as an assigned account to verify login + role (Sprint 3.3/3.4)."
 }

@@ -42,6 +42,10 @@ importers:
       '@azure/functions':
         specifier: 4.16.0
         version: 4.16.0
+    devDependencies:
+      '@slaylist/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   frontend:
     dependencies:

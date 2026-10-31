@@ -14,5 +14,8 @@
   },
   "dependencies": {
     "@azure/functions": "4.16.0"
+  },
+  "devDependencies": {
+    "@slaylist/shared": "workspace:*"
   }
 }
