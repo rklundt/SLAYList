@@ -66,7 +66,7 @@
 
 .PARAMETER RunUpToStep
   Run only steps 1..N then stop (cautious, incremental). 0 (default) runs everything. Composes with
-  -DryRun. Steps: 1 app, 2 roles, 3 SP, 4 require-assignment, 5 verify.
+  -DryRun. Steps: 1 app, 2 roles, 3 SP, 4 require-assignment, 5 redirect-URI, 6 client-secret, 7 verify.
 
 .EXAMPLE
   ./scripts/bootstrap-auth-app.ps1 -DryRun
@@ -311,8 +311,10 @@ Stop-If-Past 6
 # as the GitHub `dev`-environment secret AAD_CLIENT_SECRET + gitignored notes -- NEVER in the repo (D17).
 Info "6. Client secret (24-month expiry)"
 if ($appId -and $appId -ne '<new-app-id>') {
-  $secretCount = az ad app credential list --id $appId --query "length(@)" -o tsv --only-show-errors 2>$null
-  if ($secretCount -and [int]$secretCount -gt 0 -and -not $RotateSecret) {
+  # Count via [].keyId (paren-free): a "length(@)" JMESPath gets mangled when PowerShell hands the bare
+  # parentheses to az.cmd (cmd.exe treats () as special, az exits 255), so count returned lines instead.
+  $secretCount = @(az ad app credential list --id $appId --query "[].keyId" -o tsv --only-show-errors 2>$null).Count
+  if ($secretCount -gt 0 -and -not $RotateSecret) {
     Ok "a client secret already exists ($secretCount). Not creating another -- pass -RotateSecret to rotate."
     Note "If you don't have the value, you must rotate (secrets cannot be re-read)."
   } else {
@@ -345,7 +347,7 @@ if ($DryRun) {
   Write-Host "-- redirect URIs (expect the SWA /.auth/login/aad/callback) --" -ForegroundColor DarkGray
   az ad app show --id $appId --query "web.redirectUris" -o tsv --only-show-errors 2>$null
   Write-Host "-- client secret count (values are write-once) --" -ForegroundColor DarkGray
-  az ad app credential list --id $appId --query "length(@)" -o tsv --only-show-errors 2>$null
+  @(az ad app credential list --id $appId --query "[].keyId" -o tsv --only-show-errors 2>$null).Count
   Write-Host ""
   Ok "Auth app bootstrap complete for env=$Env."
   Note "appId    : $appId  -> GitHub dev-env secret AAD_CLIENT_ID + gitignored infra/$Env-resources.md"
