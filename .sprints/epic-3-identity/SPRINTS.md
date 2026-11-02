@@ -18,10 +18,11 @@ Acceptance: app registration exists; three roles defined; client/tenant IDs capt
 - As the owner, I want an admin-created shared family member account assigned a role, since the kids may not have email yet (Model A).
 Acceptance: shared account exists; assigned a role; documented how to delete/reassign later.
 
-## Sprint 3.3 — Wire SWA auth; swap the D22 gate to custom Entra; API reads role from token  **[Agent]**
-- As a developer, I want the Static Web App login flow wired to the custom Entra app registration (3.1) and the API to read the caller's role from the token on every request.
-- As the owner, I want Epic 2's `staticwebapp.config.json` Path-A′ gate (D22) updated in place — the route rule stays; only the redirect target changes from `/.auth/login/aad` (pre-configured AAD, any Microsoft account) to the custom Entra provider's login route. The gate is never absent during the swap.
-Acceptance: login works on dev; API has a reusable role-check it applies per request; unauthenticated requests are rejected; the `staticwebapp.config.json` route gate now redirects to the custom Entra provider; verified that a Microsoft account NOT assigned a role to this app registration cannot complete sign-in (the any-Microsoft-account gap from Epic 2 is closed).
+## Sprint 3.3 — Client-side MSAL login; API validates the token for the caller's role  **[Agent]**
+> **Re-shaped mid-sprint (D43).** The original plan swapped the SWA edge gate to a custom Entra provider — but custom SWA auth is **Standard-SKU only** (D26 corrected) and this family-only app stays on Free, so auth moved **client-side (MSAL)** with the **API validating the bearer token**. D22 was revised in place (auth at the API, not the edge). SWA built-in auth on Standard is the documented later switch; the `getCaller()` seam keeps it a one-function change.
+- As a developer, I want the SPA to sign users in with MSAL against the custom Entra app (3.1) and the API to validate the caller's bearer token and read their role on every request.
+- As the owner, I want authentication enforced without paying for Standard — the static shell may be public (the repo already is, AGPL), but every `/api/*` data request requires a valid, role-bearing token (D22 revised).
+Acceptance: login works on dev (MSAL sign-in via the custom Entra app; an assigned account completes and its role is displayed); API has a reusable role-check applied per request (bearer-JWT validated — signature/issuer/audience/expiry); unauthenticated / invalid-token `/api/*` requests are rejected (401) by the function itself; a Microsoft account NOT assigned a role cannot obtain a usable token (`appRoleAssignmentRequired` — the any-Microsoft-account gap from Epic 2 stays closed); D22 revised in place + D26 amended + the MSAL/built-in decision recorded (D43).
 
 ## Sprint 3.4 — Login gate + role proof; supersede the D22 corollary in place  **[Agent]**
 - As the owner, I want a "must log in" gate and a trivial "your role is X" display to prove the chain end to end.

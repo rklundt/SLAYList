@@ -69,10 +69,19 @@ Bicep (D41) — see `guides/2.1-oidc-deploy-auth.md`.
 
 ## 2. Runtime flow — what a visitor hits (the D22 gate)
 
-Every route is behind `authenticated`, so an anonymous request **never** reaches the page or
-the API — it's bounced to Microsoft sign-in first. The gate ships *inside the artifact*
-(`frontend/public/staticwebapp.config.json`, copied into `frontend/dist` by Vite), so it is
-present from the very first deploy — there is no "ship open, secure later" window (D22).
+> **Revision (Sprint 3.3 — auth moved from the SWA edge to the API).** The flow below is the
+> **Epic-2 state** (historical): an SWA *edge* gate redirecting anonymous requests to the
+> pre-configured any-Microsoft-account provider. Sprint 3.3 **replaced it**: custom SWA auth needs
+> the Standard SKU (D26) and the app is family-only, so authentication is now **client-side MSAL**
+> with the **API validating the bearer token** on Free (D43). The static shell is publicly servable;
+> every `/api/*` data request needs a valid, role-bearing JWT or is rejected (401). D22's invariant is
+> preserved — auth sits at the API instead of the edge. The diagram + table below record the Epic-2
+> edge-gate as shipped; "How this evolves → Epic 3" reflects the actual outcome.
+
+**Epic-2 edge gate (historical).** Every route was behind `authenticated`, so an anonymous request
+**never** reached the page or the API — it was bounced to Microsoft sign-in first. The gate shipped
+*inside the artifact* (`frontend/public/staticwebapp.config.json`, copied into `frontend/dist` by
+Vite), present from the very first deploy — no "ship open, secure later" window (D22).
 
 ```mermaid
 flowchart TD
@@ -123,11 +132,15 @@ real content until Epic 3's role-based authz lands (D22 time-bounded corollary).
 
 ## How this evolves
 
-- **Epic 3 — the gate strengthens in place (D22).** The Epic-2 gate uses SWA's pre-configured
-  Microsoft (AAD) provider and trusts any Microsoft account. Epic 3 swaps the redirect target to
-  a custom Entra app registration and adds role-based authz (listener / uploader / admin), all
-  library-scoped (D20). The gate is never *absent* — it only evolves; the `staticwebapp.config.json`
-  artifact is the thing that changes.
+- **Epic 3 — authentication moved to the API (D22 revised, Sprint 3.3).** The Epic-2 gate used SWA's
+  pre-configured Microsoft (AAD) provider and trusted any Microsoft account. The original plan was to
+  *strengthen the edge gate in place* by swapping to a custom Entra provider — but custom SWA auth is
+  **Standard-SKU only** (D26) and the app is family-only, so Sprint 3.3 instead moved auth **client-side
+  (MSAL)** with the **API validating the bearer token** (D43), staying on Free. Family restriction
+  (`appRoleAssignmentRequired` + single-tenant) and role-based authz (listener / uploader / admin,
+  library-scoped — D20) are enforced via the validated `roles` claim in `api/src/auth.ts`. SWA built-in
+  auth on Standard remains the documented later switch; the `getCaller()` seam makes it a one-function
+  change. D22's invariant holds — auth is never absent, it just sits at the API now.
 - **Epic 9 — the `main`→prod leg is added (D7 / D14).** Prod is the **same pipeline shape** with:
   a separate deploy identity (`slaylist-github-deploy-prod`, re-run the bootstrap script with
   `-Env prod`), the `prod` GitHub environment gated to `main` only, a physically separate resource
