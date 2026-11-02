@@ -8,7 +8,7 @@
 
 .DESCRIPTION
   Idempotent, parameterized, operator-run "seed" script. It creates the Entra APP REGISTRATION that
-  the Static Web App will use as its custom login provider (Epic 3), and defines the three app roles
+  the SPA uses for client-side MSAL sign-in (Epic 3), and defines the three app roles
   (listener / uploader / admin) that ride in the user's token. Like the deploy identity (D41), this is
   a Microsoft Graph object, NOT an ARM resource -- so it lives in a committed bootstrap script, never
   in the Bicep (CLAUDE.md: "Graph/Entra identity objects = bootstrap script").
@@ -42,15 +42,17 @@
                                           Epic 2's any-Microsoft-account gap. No users are assigned yet
                                           (Sprint 3.2 does that) -- so until then nobody can sign in,
                                           which is fine: the gate isn't swapped to this provider until 3.3.
-    5. Redirect URI (Sprint 3.3)       -> set the web reply URL to the SWA's /.auth/login/aad/callback
-                                          (derived from the SWA default hostname) so the login round-trip
-                                          can return to the app.
-    6. Client secret (Sprint 3.3)      -> SWA's AAD provider requires a client secret (there is no
-                                          federated-cred option for user-auth, unlike the deploy identity's
-                                          OIDC -- D43). Created only if none exists (printed ONCE; the
-                                          operator stores it as a GitHub secret + gitignored notes),
-                                          24-month expiry; -RotateSecret forces a new one.
-    7. Verify                          -> print roles / assignment flag / redirect URI / secret count + appId.
+    5. Redirect URIs (Sprint 3.3)      -> SPA redirect URIs (the SWA origin + http://localhost:5193) for
+                                          MSAL, the active path. The Web reply URL (/.auth/login/aad/
+                                          callback) is also kept but DORMANT -- pre-wires a future switch
+                                          to SWA built-in auth on Standard.
+    6. Expose API scope (Sprint 3.3)   -> App ID URI api://<appId> + the access_as_user scope + v2 access
+                                          tokens, so MSAL can request a token the API validates.
+    7. Client secret (dormant)         -> NOT used by MSAL (public client, PKCE). Kept available for the
+                                          future built-in-auth switch; created only if none exists (printed
+                                          ONCE; stored as a GitHub secret + gitignored notes), 24-month
+                                          expiry; -RotateSecret forces a new one. Not wired into SWA today.
+    8. Verify                          -> print roles / assignment flag / SPA URIs / scope / secret count + appId.
 
   WHAT THIS SCRIPT DELIBERATELY DOES NOT DO:
     - Does NOT store the client secret anywhere but the console -- the operator copies it to the GitHub
@@ -66,7 +68,8 @@
 
 .PARAMETER RunUpToStep
   Run only steps 1..N then stop (cautious, incremental). 0 (default) runs everything. Composes with
-  -DryRun. Steps: 1 app, 2 roles, 3 SP, 4 require-assignment, 5 redirect-URI, 6 client-secret, 7 verify.
+  -DryRun. Steps: 1 app, 2 roles, 3 SP, 4 require-assignment, 5 redirect-URIs, 6 expose-API-scope,
+  7 client-secret (dormant), 8 verify.
 
 .EXAMPLE
   ./scripts/bootstrap-auth-app.ps1 -DryRun
@@ -100,8 +103,8 @@ param(
   # when none exists -- secrets can't be re-read, so we don't churn them. See the 24-month note, step 6.
   [switch]$RotateSecret,
   # Run only steps 1..N and stop. 0 = everything. Steps: 1 app, 2 roles, 3 SP, 4 require-assignment,
-  # 5 redirect-URI, 6 client-secret, 7 verify. Composes with -DryRun.
-  [ValidateRange(0, 7)][int]$RunUpToStep = 0,
+  # 5 redirect-URIs, 6 expose-API-scope, 7 client-secret(dormant), 8 verify. Composes with -DryRun.
+  [ValidateRange(0, 8)][int]$RunUpToStep = 0,
   [switch]$DryRun
 )
 
@@ -283,33 +286,109 @@ if ($appId -and $appId -ne '<new-app-id>') {
 } elseif ($DryRun) { Note "[dry-run] would: set appRoleAssignmentRequired=true" }
 
 Stop-If-Past 5
-# --- 5. Redirect URI (the SWA login callback) ---
-Info "5. Redirect URI (web reply URL for the SWA login callback)"
+# --- 5. Redirect URIs: SPA (active -- MSAL) + Web reply URL (dormant -- future built-in auth) ---
+# MSAL (client-side) returns to the SPA origin, so we register SPA redirect URIs: the deployed SWA
+# origin + http://localhost:5193 (the `pnpm dev` Vite server). We ALSO keep the Web reply URL
+# (/.auth/login/aad/callback) registered but DORMANT -- it costs nothing and pre-wires a future
+# switch to SWA built-in auth on the Standard SKU (see DECISIONS: MSAL-now / built-in-later).
+Info "5. Redirect URIs (SPA for MSAL; Web reply URL kept dormant)"
+$appObjId = az ad app show --id $appId --query id -o tsv --only-show-errors 2>$null
 if (-not $RedirectUri) {
   $swaHost = az staticwebapp show -n $swaName -g $resourceGroup --query defaultHostname -o tsv --only-show-errors 2>$null
   if ($swaHost) { $RedirectUri = "https://$swaHost/.auth/login/aad/callback" }
 }
-if (-not $RedirectUri) {
-  Note "WARN: could not derive the SWA host (is $swaName created?). Pass -RedirectUri explicitly; skipping."
-} elseif ($appId -and $appId -ne '<new-app-id>') {
-  Note "reply URL: $RedirectUri"
-  $existingUris = @(az ad app show --id $appId --query "web.redirectUris" -o tsv --only-show-errors 2>$null)
-  if ($existingUris -contains $RedirectUri) {
-    Ok "already set"
+if (-not $swaHost -and $RedirectUri -match '^https://([^/]+)/') { $swaHost = $Matches[1] }
+$spaUris = @()
+if ($swaHost) { $spaUris += "https://$swaHost" }
+$spaUris += 'http://localhost:5193'
+if ($appId -and $appId -ne '<new-app-id>' -and $appObjId) {
+  # 5a. SPA redirect URIs (the active path for MSAL). Set via Graph PATCH -- az ad app update has no
+  # --spa-redirect-uris flag. JSON built by hand so a single-element array never collapses to a scalar.
+  $existingSpa = @(az ad app show --id $appId --query "spa.redirectUris" -o tsv --only-show-errors 2>$null)
+  $missingSpa = @($spaUris | Where-Object { $existingSpa -notcontains $_ })
+  if ($missingSpa.Count -eq 0) {
+    Ok "SPA redirect URIs already set ($($spaUris -join ', '))"
   } else {
-    Do-Or-Show "az ad app update --id $appId --web-redirect-uris $RedirectUri" {
-      az ad app update --id $appId --web-redirect-uris $RedirectUri --only-show-errors | Out-Null
+    Note "SPA redirect URIs: $($spaUris -join ', ')"
+    Do-Or-Show "az rest PATCH spa.redirectUris" {
+      $spaArr = ($spaUris | ForEach-Object { '"' + $_ + '"' }) -join ','
+      $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "spa-auth-$Env.json"
+      Set-Content -Path $tmp -Value ('{"spa":{"redirectUris":[' + $spaArr + ']}}') -Encoding ascii
+      az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/applications/$appObjId" --headers "Content-Type=application/json" --body "@$tmp" --only-show-errors | Out-Null
+      $script:spaRc = $LASTEXITCODE
+      Remove-Item $tmp -Force
     }
-    if (-not $DryRun) { Assert-LastOk "set redirect URI"; Ok "redirect URI set" }
+    if (-not $DryRun) { $global:LASTEXITCODE = $script:spaRc; Assert-LastOk "set SPA redirect URIs"; Ok "SPA redirect URIs set" }
   }
-} elseif ($DryRun) { Note "[dry-run] would: set the web redirect URI to the SWA /.auth/login/aad/callback" }
+  # 5b. Web reply URL (dormant -- for a future SWA built-in-auth switch).
+  if ($RedirectUri) {
+    $existingWeb = @(az ad app show --id $appId --query "web.redirectUris" -o tsv --only-show-errors 2>$null)
+    if ($existingWeb -contains $RedirectUri) {
+      Ok "Web reply URL already set (dormant): $RedirectUri"
+    } else {
+      Do-Or-Show "az ad app update --web-redirect-uris $RedirectUri (dormant)" {
+        az ad app update --id $appId --web-redirect-uris $RedirectUri --only-show-errors | Out-Null
+      }
+      if (-not $DryRun) { Assert-LastOk "set Web redirect URI"; Ok "Web reply URL set (dormant)" }
+    }
+  } else {
+    Note "WARN: could not derive the SWA host (is $swaName created?). SPA localhost set; pass -RedirectUri for the Web reply URL."
+  }
+} elseif ($DryRun) { Note "[dry-run] would: set SPA redirect URIs $($spaUris -join ', ') + the dormant Web reply URL" }
 
 Stop-If-Past 6
-# --- 6. Client secret (Sprint 3.3) -- SWA's AAD provider requires one; no federated-cred option (D43) ---
-# A client secret is SENSITIVE and shown ONCE. Create one only if none exists (secrets can't be re-read,
-# so we don't churn them); pass -RotateSecret to force a new one. The operator stores the printed value
-# as the GitHub `dev`-environment secret AAD_CLIENT_SECRET + gitignored notes -- NEVER in the repo (D17).
-Info "6. Client secret (24-month expiry)"
+# --- 6. Expose an API scope (MSAL access tokens are audienced for THIS app's API) ---
+# The SPA requests an access token for api://<appId>/access_as_user; the API validates it. Set the App
+# ID URI + the scope + requestedAccessTokenVersion=2 (so tokens carry the v2 issuer the API checks).
+# Declarative set with a fixed scope id -> idempotent (same discipline as the app roles). az ad app
+# update has no scope flag, so this is a Graph PATCH.
+Info "6. Expose API scope 'access_as_user' + App ID URI (api://$appId), v2 access tokens"
+$SCOPE_ID_ACCESS = 'a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7'
+if ($appId -and $appId -ne '<new-app-id>' -and $appObjId) {
+  $existingScopes = @(az ad app show --id $appId --query "api.oauth2PermissionScopes[].value" -o tsv --only-show-errors 2>$null)
+  $existingIdUris = @(az ad app show --id $appId --query "identifierUris" -o tsv --only-show-errors 2>$null)
+  if (($existingScopes -contains 'access_as_user') -and ($existingIdUris -contains "api://$appId")) {
+    Ok "API scope + App ID URI already set"
+  } else {
+    Do-Or-Show "az rest PATCH identifierUris + api.oauth2PermissionScopes(access_as_user) + requestedAccessTokenVersion=2" {
+      $apiJson = @"
+{
+  "identifierUris": ["api://$appId"],
+  "api": {
+    "requestedAccessTokenVersion": 2,
+    "oauth2PermissionScopes": [
+      {
+        "id": "$SCOPE_ID_ACCESS",
+        "adminConsentDescription": "Allow the SLAYList SPA to call the SLAYList API as the signed-in user.",
+        "adminConsentDisplayName": "Access the SLAYList API as the signed-in user",
+        "userConsentDescription": "Allow SLAYList to call its API on your behalf.",
+        "userConsentDisplayName": "Access the SLAYList API",
+        "value": "access_as_user",
+        "type": "User",
+        "isEnabled": true
+      }
+    ]
+  }
+}
+"@
+      $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "apiscope-auth-$Env.json"
+      Set-Content -Path $tmp -Value $apiJson -Encoding ascii
+      az rest --method PATCH --uri "https://graph.microsoft.com/v1.0/applications/$appObjId" --headers "Content-Type=application/json" --body "@$tmp" --only-show-errors | Out-Null
+      $script:scopeRc = $LASTEXITCODE
+      Remove-Item $tmp -Force
+    }
+    if (-not $DryRun) { $global:LASTEXITCODE = $script:scopeRc; Assert-LastOk "expose API scope"; Ok "API scope 'access_as_user' + App ID URI set" }
+  }
+} elseif ($DryRun) { Note "[dry-run] would: set App ID URI api://<appId> + expose the access_as_user scope (v2 tokens)" }
+
+Stop-If-Past 7
+# --- 7. Client secret -- DORMANT (kept for a future SWA built-in-auth switch; MSAL uses none) ---
+# MSAL (public client, PKCE) needs NO client secret. We keep one available so the future switch to SWA
+# built-in auth on Standard is pre-wired. Create only if none exists (secrets can't be re-read); pass
+# -RotateSecret to force a new one. Store the printed value as the GitHub dev-env secret
+# AAD_CLIENT_SECRET + gitignored notes -- NEVER in the repo (D17). It is NOT wired into SWA app settings
+# today (the deploy workflow omits it while MSAL is in use).
+Info "7. Client secret (dormant -- for a future built-in-auth switch; 24-month expiry)"
 if ($appId -and $appId -ne '<new-app-id>') {
   # Count via [].keyId (paren-free): a "length(@)" JMESPath gets mangled when PowerShell hands the bare
   # parentheses to az.cmd (cmd.exe treats () as special, az exits 255), so count returned lines instead.
@@ -333,8 +412,8 @@ if ($appId -and $appId -ne '<new-app-id>') {
   }
 } elseif ($DryRun) { Note "[dry-run] would: create a 24-month client secret and print it once" }
 
-Stop-If-Past 7
-# --- 7. Verify + summary ---
+Stop-If-Past 8
+# --- 8. Verify + summary ---
 Write-Host ""
 Info "=== Verify ==="
 if ($DryRun) {
@@ -344,14 +423,18 @@ if ($DryRun) {
   az ad app show --id $appId --query "appRoles[].value" -o tsv --only-show-errors 2>$null
   Write-Host "-- user assignment required (expect: true) --" -ForegroundColor DarkGray
   az ad sp show --id $appId --query "appRoleAssignmentRequired" -o tsv --only-show-errors 2>$null
-  Write-Host "-- redirect URIs (expect the SWA /.auth/login/aad/callback) --" -ForegroundColor DarkGray
-  az ad app show --id $appId --query "web.redirectUris" -o tsv --only-show-errors 2>$null
-  Write-Host "-- client secret count (values are write-once) --" -ForegroundColor DarkGray
+  Write-Host "-- SPA redirect URIs (expect the SWA origin + http://localhost:5193) --" -ForegroundColor DarkGray
+  az ad app show --id $appId --query "spa.redirectUris" -o tsv --only-show-errors 2>$null
+  Write-Host "-- App ID URI + exposed scope (expect api://$appId + access_as_user) --" -ForegroundColor DarkGray
+  az ad app show --id $appId --query "identifierUris" -o tsv --only-show-errors 2>$null
+  az ad app show --id $appId --query "api.oauth2PermissionScopes[].value" -o tsv --only-show-errors 2>$null
+  Write-Host "-- client secret count (dormant; values are write-once) --" -ForegroundColor DarkGray
   @(az ad app credential list --id $appId --query "[].keyId" -o tsv --only-show-errors 2>$null).Count
   Write-Host ""
   Ok "Auth app bootstrap complete for env=$Env."
   Note "appId    : $appId  -> GitHub dev-env secret AAD_CLIENT_ID + gitignored infra/$Env-resources.md"
-  Note "tenantId : $tenantId  -> already the AZURE_TENANT_ID secret; the workflow substitutes it into the config"
-  Note "The deploy workflow wires AAD_CLIENT_ID/AAD_CLIENT_SECRET into SWA app settings, then a push"
+  Note "tenantId : $tenantId  -> GitHub dev-env secret AZURE_TENANT_ID (API audience/issuer + SPA authority)"
+  Note "The deploy workflow bakes VITE_AAD_CLIENT_ID/VITE_AAD_TENANT_ID into the SPA and wires"
+  Note "AAD_CLIENT_ID/AAD_TENANT_ID into SWA app settings for the API's token validation. Then a push"
   Note "deploys. Sign in as an assigned account to verify login + role (Sprint 3.3/3.4)."
 }

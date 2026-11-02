@@ -1,47 +1,94 @@
 // Copyright (c) 2026 Ray Klundt
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { SignJWT, generateKeyPair } from 'jose';
 import type { HttpRequest } from '@azure/functions';
-import { getCaller, callerHasRole } from './auth.js';
+import { verifyBearer, mapClaims, extractBearer, callerHasRole } from './auth.js';
 
-/** Build a minimal HttpRequest with the SWA client-principal header (base64 JSON), or none. */
-function reqWithPrincipal(principal: unknown): HttpRequest {
-  const header = principal == null ? null : Buffer.from(JSON.stringify(principal)).toString('base64');
-  return {
-    headers: { get: (k: string) => (k.toLowerCase() === 'x-ms-client-principal' ? header : null) },
-  } as unknown as HttpRequest;
+// A fixed issuer/audience for the tests -- verifyBearer takes them explicitly, so no env
+// or network (JWKS) is involved; we sign with a local key pair and verify with its public key.
+const ISSUER = 'https://login.microsoftonline.com/test-tenant/v2.0';
+const AUDIENCE = 'test-client-id';
+const nowSec = () => Math.floor(Date.now() / 1000);
+
+type KeyPair = Awaited<ReturnType<typeof generateKeyPair>>;
+let keys: KeyPair; // the "real" Entra key
+let otherKeys: KeyPair; // a different key, for the bad-signature case
+
+beforeAll(async () => {
+  keys = await generateKeyPair('RS256');
+  otherKeys = await generateKeyPair('RS256');
+});
+
+/** Sign a JWT with the (by default valid) issuer/audience/exp, overridable per-case. */
+function sign(
+  claims: Record<string, unknown>,
+  opts: { issuer?: string; audience?: string; exp?: number; key?: KeyPair['privateKey'] } = {},
+): Promise<string> {
+  return new SignJWT(claims)
+    .setProtectedHeader({ alg: 'RS256' })
+    .setIssuer(opts.issuer ?? ISSUER)
+    .setAudience(opts.audience ?? AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime(opts.exp ?? nowSec() + 300)
+    .sign(opts.key ?? keys.privateKey);
 }
 
-describe('getCaller', () => {
-  it('returns null when there is no principal (anonymous)', () => {
-    expect(getCaller(reqWithPrincipal(null))).toBeNull();
+const verify = (token: string) => verifyBearer(token, keys.publicKey, { issuer: ISSUER, audience: AUDIENCE });
+
+describe('verifyBearer', () => {
+  it('accepts a valid token and maps oid + role', async () => {
+    const token = await sign({ oid: 'oid-123', roles: ['uploader'] });
+    expect(await verify(token)).toEqual({ ownerOid: 'oid-123', role: 'uploader' });
   });
 
-  it('reads ownerOid from the oid claim and role from the roles claim', () => {
-    const caller = getCaller(
-      reqWithPrincipal({
-        userId: 'fallback-id',
-        claims: [
-          { typ: 'http://schemas.microsoft.com/identity/claims/objectidentifier', val: 'oid-123' },
-          { typ: 'roles', val: 'uploader' },
-        ],
-      }),
-    );
-    expect(caller).toEqual({ ownerOid: 'oid-123', role: 'uploader' });
+  it('role is null when there is no roles claim', async () => {
+    const token = await sign({ oid: 'oid-9' });
+    expect(await verify(token)).toEqual({ ownerOid: 'oid-9', role: null });
   });
 
-  it('falls back to userId for the oid, and role is null when no roles claim', () => {
-    expect(getCaller(reqWithPrincipal({ userId: 'uid-9', claims: [] }))).toEqual({
-      ownerOid: 'uid-9',
-      role: null,
-    });
+  it('rejects a token signed by a different key (bad signature)', async () => {
+    const token = await sign({ oid: 'oid-1', roles: ['admin'] }, { key: otherKeys.privateKey });
+    expect(await verify(token)).toBeNull();
   });
 
-  it('returns null on a malformed (non-JSON) header', () => {
-    const req = { headers: { get: () => 'not valid base64 json !!' } } as unknown as HttpRequest;
-    expect(getCaller(req)).toBeNull();
+  it('rejects a wrong audience', async () => {
+    const token = await sign({ oid: 'oid-1', roles: ['admin'] }, { audience: 'some-other-app' });
+    expect(await verify(token)).toBeNull();
   });
+
+  it('rejects a wrong issuer', async () => {
+    const token = await sign({ oid: 'oid-1', roles: ['admin'] }, { issuer: 'https://evil.example/v2.0' });
+    expect(await verify(token)).toBeNull();
+  });
+
+  it('rejects an expired token', async () => {
+    const token = await sign({ oid: 'oid-1', roles: ['admin'] }, { exp: nowSec() - 60 });
+    expect(await verify(token)).toBeNull();
+  });
+
+  it('rejects an otherwise-valid token that carries no oid', async () => {
+    const token = await sign({ roles: ['admin'] });
+    expect(await verify(token)).toBeNull();
+  });
+});
+
+describe('extractBearer', () => {
+  const req = (auth: string | null): HttpRequest =>
+    ({ headers: { get: (k: string) => (k.toLowerCase() === 'authorization' ? auth : null) } }) as unknown as HttpRequest;
+  it('returns the token from a Bearer header', () => expect(extractBearer(req('Bearer abc.def.ghi'))).toBe('abc.def.ghi'));
+  it('is case-insensitive on the scheme', () => expect(extractBearer(req('bearer xyz'))).toBe('xyz'));
+  it('returns null without a header', () => expect(extractBearer(req(null))).toBeNull());
+  it('returns null on a non-Bearer header', () => expect(extractBearer(req('Basic abc'))).toBeNull());
+});
+
+describe('mapClaims', () => {
+  it('takes the first role from the roles array', () =>
+    expect(mapClaims({ oid: 'x', roles: ['listener', 'admin'] })).toEqual({ ownerOid: 'x', role: 'listener' }));
+  it('null role when the roles array is empty', () =>
+    expect(mapClaims({ oid: 'x', roles: [] })).toEqual({ ownerOid: 'x', role: null }));
+  it('null when oid is missing', () => expect(mapClaims({ roles: ['admin'] })).toBeNull());
 });
 
 describe('callerHasRole', () => {

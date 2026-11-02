@@ -7,10 +7,10 @@ import { getCaller } from '../auth.js';
 /**
  * GET /api/me -- returns the signed-in caller's role.
  *
- * The SWA D22 gate already redirects anonymous requests to login at the edge; this
- * handler ALSO rejects a missing principal in code (401) so the API never relies on the
- * gate alone (InfoSec: authorize server-side). It's the endpoint Sprint 3.4's
- * "your role is X" proof reads.
+ * With client-side MSAL (Sprint 3.3) there is no SWA edge auth: this handler validates the
+ * `Authorization: Bearer` token itself via getCaller and returns 401 on a missing/invalid
+ * token (InfoSec: authorize server-side). It's the endpoint Sprint 3.4's "your role is X"
+ * proof reads.
  *
  * Response is intentionally minimal: just the role (no name, no email). Logging per D32:
  * `ownerOid` only -- never a display name.
@@ -19,7 +19,7 @@ export async function me(
   request: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
-  const caller = getCaller(request);
+  const caller = await getCaller(request);
   if (!caller) {
     return { status: 401, jsonBody: { error: 'not authenticated' } };
   }
@@ -29,7 +29,7 @@ export async function me(
 
 app.http('me', {
   methods: ['GET'],
-  authLevel: 'anonymous', // the SWA edge gate enforces authentication; we re-check in code
+  authLevel: 'anonymous', // no SWA edge auth (MSAL); getCaller validates the bearer token in code
   route: 'me',
   handler: me,
 });

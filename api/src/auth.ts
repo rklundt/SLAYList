@@ -4,24 +4,31 @@
 /**
  * Server-side auth helper for the SLAYList API (Epic 3).
  *
- * The SWA edge layer authenticates the user (custom Entra provider, Sprint 3.3) and
- * injects the signed-in identity into every `/api/*` request as the base64-JSON header
- * `x-ms-client-principal`. This module decodes it into the caller's stable id + app role.
+ * AUTH MODEL (Sprint 3.3 -- client-side MSAL): the React SPA signs the user in with MSAL
+ * against the custom Entra app (`slaylist-auth-dev`) and calls `/api/*` with an
+ * `Authorization: Bearer <access-token>` header. This module validates that JWT itself --
+ * signature (Entra JWKS), issuer, audience, expiry -- then maps the `oid` + `roles` claims
+ * to the caller's stable id + app role. There is NO SWA edge auth on the Free SKU (custom
+ * SWA auth needs Standard -- D26), so every data endpoint MUST call getCaller and reject on
+ * null. Authorization is enforced server-side, never trusted from the UI (InfoSec rule).
  *
- * Why re-check here when the D22 gate already blocks anonymous at the edge: defense in
- * depth. Authorization is enforced server-side, never trusted from the UI (InfoSec rule).
- * `getCaller` returns null for an unauthenticated request so handlers can reject it.
+ * MIGRATION SEAM (keep intact): everything downstream depends only on
+ * `getCaller(request) -> Caller` + `callerHasRole`, never on HOW the identity was derived.
+ * If the app later moves to SWA built-in auth on Standard, ONLY getCaller's body changes:
+ * swap bearer-JWT validation for decoding the SWA-injected `x-ms-client-principal` header
+ * (base64 JSON -> read the `oid`-type claim + the `roles` claim). Roles, assignments, and
+ * every consumer stay identical. (See DECISIONS: MSAL-now / built-in-later.)
  *
- * `Role` is imported as a TYPE ONLY (erased from the compiled JS) so this carries no
- * runtime dependency on `@slaylist/shared` -- keeping the deployed function's flat
- * node_modules clean (Sprint 3.1.5) while the shared type stays the single source of truth.
+ * `Role` is a TYPE-ONLY import (erased from the compiled JS) so the shared package stays the
+ * single source of truth without becoming a runtime dependency of the deployed function.
  *
- * PII discipline (D32): the only identity field used for authz/logging is `ownerOid`
- * (the opaque, stable Entra object id, D21). Never read or log displayName / email.
+ * PII discipline (D32): the only identity field used for authz/logging is `ownerOid` (the
+ * opaque, stable Entra object id, D21). Never read or log displayName / email.
  */
 
 import type { HttpRequest } from '@azure/functions';
 import type { Role } from '@slaylist/shared';
+import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 
 export interface Caller {
   /** Stable Entra object id (`oid`). The ONLY identity field used for authz + logs (D21/D32). */
@@ -30,48 +37,67 @@ export interface Caller {
   role: Role | null;
 }
 
-const PRINCIPAL_HEADER = 'x-ms-client-principal';
-// The object-id claim type varies by token flavour; check both, newest first.
-const OID_CLAIM_TYPES = [
-  'http://schemas.microsoft.com/identity/claims/objectidentifier',
-  'oid',
-];
+// --- Config from app settings (wired by the deploy workflow). Single-tenant (D2). ---
+const TENANT_ID = process.env.AAD_TENANT_ID ?? '';
+const CLIENT_ID = process.env.AAD_CLIENT_ID ?? '';
+// Entra v2 issuer + JWKS endpoint for this tenant.
+const ISSUER = `https://login.microsoftonline.com/${TENANT_ID}/v2.0`;
+const JWKS_URI = `https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys`;
+// The access token's audience is this app. Entra emits either the bare client id or the
+// `api://<clientId>` App ID URI depending on token version, so accept both.
+const AUDIENCE = [CLIENT_ID, `api://${CLIENT_ID}`];
 
-interface SwaClaim {
-  typ: string;
-  val: string;
+// Remote JWKS resolver, created once (jose caches keys + rate-limits refetches internally).
+// Null only in a misconfigured env (no tenant set) -- getCaller then rejects everything.
+const remoteJwks: JWTVerifyGetKey | null = TENANT_ID ? createRemoteJWKSet(new URL(JWKS_URI)) : null;
+
+/** Pull the raw bearer token from the Authorization header, or null if absent/malformed. */
+export function extractBearer(request: HttpRequest): string | null {
+  const header = request.headers.get('authorization');
+  if (!header) return null;
+  const m = /^Bearer\s+(.+)$/i.exec(header.trim());
+  return m ? (m[1] ?? null) : null;
 }
-interface SwaClientPrincipal {
-  identityProvider?: string;
-  userId?: string;
-  userRoles?: string[];
-  claims?: SwaClaim[];
+
+/** Map a verified JWT payload to a Caller. Returns null if the required `oid` is missing. */
+export function mapClaims(payload: JWTPayload): Caller | null {
+  const ownerOid = typeof payload.oid === 'string' ? payload.oid : undefined;
+  if (!ownerOid) return null;
+  // App roles arrive as a `roles` string array. Our registration assigns exactly one of
+  // listener/uploader/admin (D20); take the first. An unexpected value simply won't match
+  // any callerHasRole check.
+  const roles = Array.isArray(payload.roles) ? payload.roles : [];
+  const role = (typeof roles[0] === 'string' ? roles[0] : null) as Role | null;
+  return { ownerOid, role };
 }
 
 /**
- * Decode `x-ms-client-principal` into the caller's `ownerOid` + app `role`.
- * Returns null when there is no (valid) principal -- i.e. the request is anonymous.
+ * Verify a bearer token against the given key resolver and map it to a Caller. Exposed
+ * (not inlined) so unit tests can pass a local key + issuer/audience without touching the
+ * network. Any verification failure yields null (treat the request as anonymous).
  */
-export function getCaller(request: HttpRequest): Caller | null {
-  const header = request.headers.get(PRINCIPAL_HEADER);
-  if (!header) return null;
-
-  let principal: SwaClientPrincipal;
+export async function verifyBearer(
+  token: string,
+  keys: Parameters<typeof jwtVerify>[1],
+  opts: { issuer: string; audience: string | string[] },
+): Promise<Caller | null> {
   try {
-    principal = JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
+    const { payload } = await jwtVerify(token, keys, opts);
+    return mapClaims(payload);
   } catch {
     return null;
   }
+}
 
-  const claims = principal.claims ?? [];
-  const ownerOid = claims.find((c) => OID_CLAIM_TYPES.includes(c.typ))?.val ?? principal.userId;
-  if (!ownerOid) return null;
-
-  // App roles arrive as `roles` claims. The registration defines exactly listener/uploader/admin
-  // (D20), so the value is one of those; an unexpected value simply won't match any role check.
-  const role = (claims.find((c) => c.typ === 'roles')?.val ?? null) as Role | null;
-
-  return { ownerOid, role };
+/**
+ * Decode + fully validate the request's bearer token into the caller's `ownerOid` + app
+ * `role`. Returns null when there is no token or it fails validation -- i.e. anonymous.
+ * Async because signature/JWKS verification is async.
+ */
+export async function getCaller(request: HttpRequest): Promise<Caller | null> {
+  const token = extractBearer(request);
+  if (!token || !remoteJwks) return null;
+  return verifyBearer(token, remoteJwks, { issuer: ISSUER, audience: AUDIENCE });
 }
 
 /**
