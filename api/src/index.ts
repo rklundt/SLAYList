@@ -16,3 +16,4 @@
 
 import './functions/health.js';
 import './functions/me.js';
+import './functions/authdebug.js'; // TEMP Sprint 3.3 diagnostic — remove with authdebug.ts
