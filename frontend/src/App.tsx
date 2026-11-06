@@ -56,7 +56,10 @@ function SignIn() {
   return (
     <section className="auth">
       <p>Private family library — please sign in.</p>
-      <button type="button" onClick={() => void instance.loginRedirect(loginRequest)}>
+      <button
+        type="button"
+        onClick={() => void instance.loginRedirect({ ...loginRequest, prompt: 'select_account' })}
+      >
         Sign in
       </button>
     </section>
