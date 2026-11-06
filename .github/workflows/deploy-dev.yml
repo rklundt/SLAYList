@@ -6,8 +6,8 @@
 #     `environment: dev` on the deploy job makes GitHub mint an OIDC token whose subject is
 #     `repo:<owner>/<repo>:environment:dev` (matching the federated credential the bootstrap script
 #     created) AND exposes the dev environment-scoped secrets to that job only.
-#   - Gate: the deployed app is auth-gated from the very first deploy (D22) by
-#     frontend/public/staticwebapp.config.json (Vite copies it into frontend/dist).
+#   - Auth: client-side MSAL; the API validates the bearer token itself (D22 revised -- data is
+#     gated at the API, not the SWA edge, because custom SWA auth needs the Standard SKU -- D26).
 #   - Build: pnpm in CI, deploy pre-built artifacts (D34) -- no Oryx.
 #   - Deploy token is fetched at runtime via the OIDC-authed az session and masked -- never stored
 #     in GitHub Secrets (D37).
@@ -65,6 +65,12 @@ jobs:
                                # pnpm 11.3.0 via the normal self-installer (ERR_PNPM_UNSUPPORTED_ENGINE).
       - run: pnpm install --frozen-lockfile
       - name: Build frontend + API
+        env:
+          # Public SPA config baked into the frontend bundle at build. NOT secrets (a client id +
+          # tenant id are public in any OAuth SPA); kept out of source and injected here from GitHub
+          # secrets -- same D17 posture as the API's tenant input.
+          VITE_AAD_CLIENT_ID: ${{ secrets.AAD_CLIENT_ID }}
+          VITE_AAD_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: pnpm -r run build   # frontend -> frontend/dist (incl. staticwebapp.config.json); api -> api/dist
 
       - name: Assemble the SWA managed-functions deploy artifact
@@ -77,10 +83,15 @@ jobs:
         # symlinks do NOT survive StaticSitesClient's zip -> upload -> backend-extract, so on Azure's
         # side @azure/functions is unresolvable and ZERO functions register (deploy still reports
         # "succeeded"). A flat layout has no symlinks to break. --ignore-workspace makes it an
-        # isolated install (the api carries no runtime workspace deps); --prod drops devDependencies.
+        # isolated install (the api carries no runtime workspace deps).
         run: |
           mkdir -p api/__deploy
-          cp api/host.json api/package.json api/__deploy/
+          cp api/host.json api/__deploy/
+          # Runtime-only package.json: strip devDependencies. The api's @slaylist/shared devDep is a
+          # `workspace:*` spec that trips the isolated --ignore-workspace install (even with --prod),
+          # and the deployed function doesn't need it -- the shared Role is a type-only import, erased
+          # from the compiled JS (Sprint 3.3).
+          node -e "const p=require('./api/package.json'); delete p.devDependencies; require('fs').writeFileSync('api/__deploy/package.json', JSON.stringify(p,null,2)+'\n')"
           cp -r api/dist api/__deploy/dist
           cd api/__deploy
           pnpm install --prod --node-linker=hoisted --ignore-workspace --no-lockfile
@@ -92,11 +103,17 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Wire connection strings into SWA app settings (D24/D25)
+      - name: Wire app settings into the SWA (conn strings D24/D25; API JWT-validation inputs)
         run: |
+          # AAD_CLIENT_ID + AAD_TENANT_ID feed the API's bearer-token validation (audience/issuer).
+          # AAD_CLIENT_SECRET is intentionally NOT pushed: MSAL (client-side, PKCE) uses no secret.
+          # The secret stays in GitHub secrets, dormant -- pre-wired for a future SWA built-in-auth
+          # switch on Standard (see DECISIONS: MSAL-now / built-in-later).
           az staticwebapp appsettings set -n "$SWA_NAME" -g "$AZURE_RG" --setting-names \
             "APPLICATIONINSIGHTS_CONNECTION_STRING=${{ secrets.APPINSIGHTS_CONNECTION_STRING }}" \
-            "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}"
+            "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+            "AAD_CLIENT_ID=${{ secrets.AAD_CLIENT_ID }}" \
+            "AAD_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}"
 
       - name: Deploy to dev SWA (D37 -- OIDC; deploy token fetched at runtime, masked, never stored)
         run: |

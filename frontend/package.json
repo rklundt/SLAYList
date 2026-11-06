@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.27.0",
+    "@azure/msal-react": "^5.7.4",
     "@slaylist/shared": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

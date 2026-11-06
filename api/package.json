@@ -13,6 +13,10 @@
     "start": "func start"
   },
   "dependencies": {
-    "@azure/functions": "4.16.0"
+    "@azure/functions": "4.16.0",
+    "jose": "6.2.15"
+  },
+  "devDependencies": {
+    "@slaylist/shared": "workspace:*"
   }
 }
