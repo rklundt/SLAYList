@@ -51,9 +51,21 @@ const AUDIENCE = [CLIENT_ID, `api://${CLIENT_ID}`];
 // Null only in a misconfigured env (no tenant set) -- getCaller then rejects everything.
 const remoteJwks: JWTVerifyGetKey | null = TENANT_ID ? createRemoteJWKSet(new URL(JWKS_URI)) : null;
 
-/** Pull the raw bearer token from the Authorization header, or null if absent/malformed. */
+/**
+ * Header the SPA carries the user's bearer token in. NOT `Authorization`: Azure Static Web Apps
+ * reserves `Authorization` for its internal link to the managed Functions host and OVERWRITES any
+ * client value with a platform token (audience `.../azurefunctions`, issuer `*.scm.azurewebsites.net`)
+ * before the request reaches our code — so a token sent in `Authorization` never arrives. We use a
+ * custom header, which SWA forwards untouched. Verified on dev 2026-11-06 (D44). `x-ms-*` is also
+ * reserved by SWA, so the name deliberately avoids that prefix.
+ */
+const BEARER_HEADER = 'x-slaylist-authorization';
+
+/** Pull the raw bearer token from the SLAYList auth header, or null if absent/malformed. */
 export function extractBearer(request: HttpRequest): string | null {
-  const header = request.headers.get('authorization');
+  // Custom header first (how the SPA sends it). Fall back to `Authorization` for local dev / the
+  // SWA-CLI emulator, where the platform does not inject its own token.
+  const header = request.headers.get(BEARER_HEADER) ?? request.headers.get('authorization');
   if (!header) return null;
   const m = /^Bearer\s+(.+)$/i.exec(header.trim());
   return m ? (m[1] ?? null) : null;

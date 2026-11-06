@@ -77,8 +77,11 @@ function RoleReadout() {
     (async () => {
       try {
         const result = await instance.acquireTokenSilent({ scopes: apiScopes, account });
+        // Custom header, NOT Authorization: Azure Static Web Apps overwrites `Authorization` with
+        // its own internal platform token before the request reaches the managed Functions API, so
+        // the user's bearer token must ride in a header SWA forwards untouched (D44).
         const res = await fetch('/api/me', {
-          headers: { Authorization: `Bearer ${result.accessToken}` },
+          headers: { 'X-SLAYLIST-Authorization': `Bearer ${result.accessToken}` },
         });
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);

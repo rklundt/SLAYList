@@ -20,11 +20,15 @@ export async function authdebug(
   _context: InvocationContext,
 ): Promise<HttpResponseInit> {
   const authHeader = request.headers.get('authorization');
-  const m = authHeader ? /^Bearer\s+(.+)$/i.exec(authHeader.trim()) : null;
+  const customHeader = request.headers.get('x-slaylist-authorization');
+  const picked = customHeader ?? authHeader;
+  const m = picked ? /^Bearer\s+(.+)$/i.exec(picked.trim()) : null;
   const token = m ? m[1] : null;
   const out: Record<string, unknown> = {
     authHeaderPresent: authHeader != null,
     authHeaderSample: authHeader ? authHeader.slice(0, 10) : null,
+    customHeaderPresent: customHeader != null,
+    customHeaderSample: customHeader ? customHeader.slice(0, 10) : null,
     tenantSet: Boolean(TENANT_ID),
     clientSet: Boolean(CLIENT_ID),
     jwksReady: Boolean(jwks),
