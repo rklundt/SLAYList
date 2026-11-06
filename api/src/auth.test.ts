@@ -75,12 +75,20 @@ describe('verifyBearer', () => {
 });
 
 describe('extractBearer', () => {
-  const req = (auth: string | null): HttpRequest =>
-    ({ headers: { get: (k: string) => (k.toLowerCase() === 'authorization' ? auth : null) } }) as unknown as HttpRequest;
-  it('returns the token from a Bearer header', () => expect(extractBearer(req('Bearer abc.def.ghi'))).toBe('abc.def.ghi'));
-  it('is case-insensitive on the scheme', () => expect(extractBearer(req('bearer xyz'))).toBe('xyz'));
-  it('returns null without a header', () => expect(extractBearer(req(null))).toBeNull());
-  it('returns null on a non-Bearer header', () => expect(extractBearer(req('Basic abc'))).toBeNull());
+  // Case-insensitive header bag, mirroring Azure Functions' Headers.get.
+  const req = (headers: Record<string, string>): HttpRequest =>
+    ({ headers: { get: (k: string) => headers[k.toLowerCase()] ?? null } }) as unknown as HttpRequest;
+  const CUSTOM = 'x-slaylist-authorization';
+
+  it('reads the token from the SLAYList custom header — how the SPA sends it (D44)', () =>
+    expect(extractBearer(req({ [CUSTOM]: 'Bearer abc.def.ghi' }))).toBe('abc.def.ghi'));
+  it('prefers the custom header over Authorization (SWA overwrites Authorization — D44)', () =>
+    expect(extractBearer(req({ [CUSTOM]: 'Bearer good', authorization: 'Bearer platform-token' }))).toBe('good'));
+  it('falls back to Authorization for local dev when no custom header is present', () =>
+    expect(extractBearer(req({ authorization: 'Bearer abc.def.ghi' }))).toBe('abc.def.ghi'));
+  it('is case-insensitive on the scheme', () => expect(extractBearer(req({ [CUSTOM]: 'bearer xyz' }))).toBe('xyz'));
+  it('returns null without any auth header', () => expect(extractBearer(req({}))).toBeNull());
+  it('returns null on a non-Bearer header', () => expect(extractBearer(req({ [CUSTOM]: 'Basic abc' }))).toBeNull());
 });
 
 describe('mapClaims', () => {

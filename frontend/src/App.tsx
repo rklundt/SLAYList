@@ -108,12 +108,21 @@ function RoleReadout() {
     };
   }, [instance, accounts]);
 
+  // 'loading' | 'error' | 'none' are UI states, not real roles (roles are listener/uploader/admin).
+  const isRealRole = role !== 'loading' && role !== 'error' && role !== 'none';
+
   return (
     <section className="auth">
-      <p>
-        Signed in. Your role:{' '}
-        <span className="role">{role === 'loading' ? 'checking…' : role}</span>
-      </p>
+      {role === 'loading' && <p>Signed in. Checking your role…</p>}
+      {role === 'error' && <p>Signed in, but we couldn’t load your role just now. Try refreshing the page.</p>}
+      {role === 'none' && (
+        <p>Signed in — but your account doesn’t have a role yet. Ask an admin to grant you access.</p>
+      )}
+      {isRealRole && (
+        <p>
+          Signed in. Your role: <span className="role">{role}</span>
+        </p>
+      )}
       <button type="button" onClick={() => void instance.logoutRedirect()}>
         Sign out
       </button>
