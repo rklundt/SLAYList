@@ -5,15 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 /**
- * Component tests for the Sprint 3.3 auth-aware skeleton UI.
+ * Component tests for the Sprint 3.4 login gate + role proof.
  *
  * Responsibilities proved here:
- *   1. Render the heading + the AGPL §13 source-link footer (D15 guardrail).
- *   2. Round-trip /api/health and display the result (frontend ↔ API wire).
- *   3. Signed out -> a "Sign in" control; signed in -> read /api/me and show the role.
+ *   1. Render the SLAYList heading + the AGPL §13 source-link footer (D15 — visible even on the gate).
+ *   2. Signed out -> ONLY the sign-in gate; app content (role + health) is gated away.
+ *   3. Signed in -> resolve the role via /api/me (the end-to-end proof) + show the health indicator.
+ *   4. The /api/me call uses the SWA-safe custom header, not Authorization (D44).
  *
  * `@azure/msal-react` is mocked so we drive the auth state directly (no MsalProvider/network).
- * Real mobile-first layout + the polished gate are Epic 8 / Sprint 3.4.
+ * Real mobile-first layout is Epic 8.
  */
 
 const h = vi.hoisted(() => ({
@@ -39,17 +40,16 @@ vi.mock('@azure/msal-react', () => ({
 // Imported AFTER the mock is declared.
 const { App } = await import('./App.js');
 
-/** Route fetch by URL so /api/health and /api/me can be stubbed together. */
+/** Route fetch by URL so /api/health and /api/me can be stubbed together. Returns the mock. */
 function stubFetch(routes: Record<string, { ok: boolean; status?: number; body: unknown }>) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((input: string) => {
-      const url = String(input);
-      const key = Object.keys(routes).find((k) => url.includes(k));
-      const r = key ? routes[key]! : { ok: false, status: 404, body: {} };
-      return Promise.resolve({ ok: r.ok, status: r.status ?? (r.ok ? 200 : 500), json: async () => r.body });
-    }),
-  );
+  const mock = vi.fn((input: string, _init?: RequestInit) => {
+    const url = String(input);
+    const key = Object.keys(routes).find((k) => url.includes(k));
+    const r = key ? routes[key]! : { ok: false, status: 404, body: {} };
+    return Promise.resolve({ ok: r.ok, status: r.status ?? (r.ok ? 200 : 500), json: async () => r.body });
+  });
+  vi.stubGlobal('fetch', mock);
+  return mock;
 }
 
 beforeEach(() => {
@@ -61,33 +61,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('App — auth-aware skeleton (Sprint 3.3)', () => {
-  it('renders the heading', () => {
-    stubFetch({ '/api/health': { ok: true, body: { status: 'ok' } } });
+describe('App — login gate + role proof (Sprint 3.4)', () => {
+  it('renders the SLAYList heading', () => {
+    stubFetch({});
     render(<App />);
     expect(screen.getByRole('heading', { name: /SLAYList/i })).toBeTruthy();
   });
 
-  it('renders the AGPL §13 source-link footer pointing at the public repo (D15 guardrail)', () => {
-    stubFetch({ '/api/health': { ok: true, body: { status: 'ok' } } });
+  it('renders the AGPL §13 source-link footer on the gate (D15 — visible even when signed out)', () => {
+    stubFetch({});
     render(<App />);
     const link = screen.getByRole('link', { name: /Source code \(AGPL-3\.0-or-later\)/i });
     expect(link.getAttribute('href')).toBe('https://github.com/rklundt/SLAYList');
   });
 
-  it('shows API: ok when /api/health responds 200 with {status: "ok"}', async () => {
-    stubFetch({ '/api/health': { ok: true, body: { status: 'ok' } } });
-    render(<App />);
-    await waitFor(() => expect(screen.getByText('ok')).toBeTruthy());
-  });
-
-  it('offers a "Sign in" control when signed out', () => {
-    stubFetch({ '/api/health': { ok: true, body: { status: 'ok' } } });
+  it('signed out: shows ONLY the sign-in gate — no role, no health, no sign-out', () => {
+    // Even with /api/* stubbed, the gate must not render app content.
+    stubFetch({
+      '/api/health': { ok: true, body: { status: 'ok' } },
+      '/api/me': { ok: true, body: { role: 'uploader' } },
+    });
     render(<App />);
     expect(screen.getByRole('button', { name: /sign in/i })).toBeTruthy();
+    expect(screen.getByText(/please sign in/i)).toBeTruthy();
+    // App content is gated away:
+    expect(screen.queryByRole('button', { name: /sign out/i })).toBeNull();
+    expect(screen.queryByText(/your role/i)).toBeNull();
+    expect(screen.queryByText('ok')).toBeNull(); // no health indicator when signed out
   });
 
-  it('reads /api/me and shows the role when signed in', async () => {
+  it('signed in: shows the resolved role (end-to-end proof) + the health indicator', async () => {
     h.state.authed = true;
     stubFetch({
       '/api/health': { ok: true, body: { status: 'ok' } },
@@ -95,7 +98,23 @@ describe('App — auth-aware skeleton (Sprint 3.3)', () => {
     });
     render(<App />);
     await waitFor(() => expect(screen.getByText('uploader')).toBeTruthy());
-    // The bearer token from acquireTokenSilent was used.
+    await waitFor(() => expect(screen.getByText('ok')).toBeTruthy());
     expect(h.instance.acquireTokenSilent).toHaveBeenCalled();
+  });
+
+  it('signed in: calls /api/me with the SWA-safe custom header, NOT Authorization (D44)', async () => {
+    h.state.authed = true;
+    const fetchMock = stubFetch({
+      '/api/health': { ok: true, body: { status: 'ok' } },
+      '/api/me': { ok: true, body: { role: 'admin' } },
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('admin')).toBeTruthy());
+
+    const meCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('/api/me'));
+    expect(meCall).toBeTruthy();
+    const headers = (meCall![1] as RequestInit).headers as Record<string, string>;
+    expect(headers['X-SLAYLIST-Authorization']).toMatch(/^Bearer /);
+    expect(headers['Authorization']).toBeUndefined();
   });
 });
